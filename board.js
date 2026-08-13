@@ -144,6 +144,16 @@ export class HexBoard {
     this.paint();
   }
 
+  /**
+   * Whether a swap is the move on offer. The pie rule allows it as the reply
+   * to the opening move and at no other point, which is the same test
+   * hexworld puts on its own swap button. The history will hold one anywhere,
+   * so a link that has one elsewhere still opens.
+   */
+  canSwap() {
+    return this.cursor === 1 && this.moves[0].type === "move";
+  }
+
   /** The pie rule: reflect the board and change every colour. */
   swap() {
     this.add({ type: "swap" });

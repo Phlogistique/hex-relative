@@ -77,6 +77,7 @@ function placeStone(cell, event) {
 
 /** Everything that has to follow a change of position or board size. */
 function refresh() {
+  ui.swap.disabled = !board.canSwap();
   renderMoves();
   renderStatus();
   showReadout(lastTouched);
