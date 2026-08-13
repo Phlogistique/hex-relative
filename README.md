@@ -70,10 +70,13 @@ the colours rather than storing them, so those keep an explicit spelling of thei
 |---|---|
 | `mason.js` | the coordinate system: `relative`, `variants`, `format`, `parse`, `distances` — no DOM |
 | `board.js` | the SVG board: geometry, edge borders, labels, win detection |
-| `app.js` | UI wiring: toolbar, readout, stone list, URL state |
+| `url.js` | the URL fragment: hexworld's format, read and written — no DOM |
+| `app.js` | UI wiring: toolbar, readout, stone list, history |
 | `mason.test.mjs` | checks against every worked example on the wiki page |
+| `url.test.mjs` | checks the fragment against hexworld's format |
 
-`mason.js` has no dependencies and no DOM references, so it can be reused on its own.
+`mason.js` and `url.js` have no dependencies and no DOM references, so either can be reused
+on its own.
 
 ## Running it
 
@@ -86,7 +89,7 @@ python3 -m http.server 8000
 Tests:
 
 ```sh
-node --test mason.test.mjs
+node --test *.test.mjs
 ```
 
 ## Deployment
@@ -103,5 +106,4 @@ coordinates such as `d10` agree with HexWiki and hexworld.org.
 
 ## Credits
 
-The notation is [Mason's](https://www.hexwiki.net/index.php/User:Mason). This board is an
-independent implementation; it is not derived from, and not affiliated with, hexworld.org.
+The notation is [Mason's](https://www.hexwiki.net/index.php/User:Mason).
