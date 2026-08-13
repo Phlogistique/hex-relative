@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hex board with Mason's relative coordinates</title>
+    <meta
+      name="description"
+      content="An interactive Hex board that names cells with Mason's relative coordinates, the board-size-independent notation from HexWiki."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <h1
+        title="Mason's relative coordinates. A cell is named YX — row then column — and each number counts cells inwards from an edge. Y from red (bottom), Y' from red' (top), X from blue (left), X' from blue' (right). The hyphen is optional until a number has two digits: 44, 54', 5'4, but 10-4. The 4-4 point is 44 on every board size."
+      >
+        Hex board with relative coordinates
+      </h1>
+    </header>
+
+    <div class="toolbar">
+      <label title="Board size, 2 to 26"
+        >Size
+        <input
+          id="size"
+          type="number"
+          min="2"
+          max="26"
+          step="1"
+          value="13"
+          aria-label="Board size"
+      /></label>
+      <label title="Which coordinates to print around the board">
+        <span class="hide-narrow">Coordinates</span>
+        <select id="labels" aria-label="Coordinate system">
+          <option value="relative" selected>relative</option>
+          <option value="standard">standard</option>
+          <option value="none">none</option>
+        </select>
+      </label>
+      <label
+        title="What tapping a cell does. Tapping a stone takes it off; with a colour forced, tapping the other colour overwrites it."
+      >
+        <span class="hide-narrow">Placing</span>
+        <select id="mode" aria-label="What a tap does">
+          <option value="alternate" selected>alternating</option>
+          <option value="red">red only</option>
+          <option value="blue">blue only</option>
+          <option value="erase">erase</option>
+          <option value="inspect">nothing (just name cells)</option>
+        </select>
+      </label>
+      <label class="checkbox" title="Number the stones in playing order"
+        ><input id="numbers" type="checkbox" checked />
+        <span class="hide-narrow">Move </span>numbers</label
+      >
+      <span class="spacer"></span>
+      <button id="undo" type="button" title="Take back the last stone (u)">
+        Undo
+      </button>
+      <button id="clear" type="button" title="Empty the board">Clear</button>
+      <button
+        id="example"
+        type="button"
+        title="The 13x13 diagram from the wiki page: 44, 54', 5'4, 4'4', 2'3, 5'2, 62"
+      >
+        <span class="hide-narrow">Wiki </span>example
+      </button>
+      <button
+        id="share"
+        type="button"
+        title="The position lives in the address bar, so a link carries it"
+      >
+        Copy link
+      </button>
+    </div>
+
+    <main>
+      <section class="board-panel">
+        <div
+          id="board"
+          class="board"
+          title="Each side carries both names of every row and column: against the board the one measured from the nearer edge, running 1 up to about half the board and back down; outside it, in lighter type, the one measured from the far edge."
+        ></div>
+        <p id="status" class="status"></p>
+      </section>
+
+      <aside class="side">
+        <section class="card">
+          <h2
+            title="Every cell has four names, one per pair of edges. The highlighted one is measured from the two nearest edges — a default, not a rule: on 13x13, b8 is 62 in isolation but reads better as 8'2 after 2'3 and 5'2, because that name does not change with board size."
+          >
+            Cell
+          </h2>
+          <div id="readout"></div>
+        </section>
+
+        <section class="card">
+          <h2
+            title="Accepts a relative coordinate — 5'2, 8'-2, 10-4 — or a standard one such as d5"
+          >
+            Find
+          </h2>
+          <form id="goto-form" autocomplete="off">
+            <input
+              id="goto"
+              type="text"
+              placeholder="5'2, 8'-2, 10-4, d5"
+              aria-label="Coordinate"
+            />
+            <button type="submit">Show</button>
+          </form>
+          <p id="goto-error" class="error"></p>
+        </section>
+
+        <section class="card">
+          <h2 title="Stones in playing order, named both ways">Stones</h2>
+          <div id="moves"></div>
+        </section>
+      </aside>
+    </main>
+
+    <footer>
+      <p>
+        Notation by
+        <a href="https://www.hexwiki.net/index.php/User:Mason">Mason</a>,
+        described on
+        <a
+          href="https://www.hexwiki.net/index.php/User:Mason#Relative_Coordinates"
+          >HexWiki</a
+        >. Independent implementation, unaffiliated with hexworld.org.
+      </p>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

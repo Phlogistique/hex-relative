@@ -1,0 +1,20 @@
+name: Tests
+
+# Pages serves this branch's root directly (Settings -> Pages -> Deploy from a
+# branch), so there is no deployment workflow. This only guards the coordinate
+# logic.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test mason.test.mjs

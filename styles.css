@@ -1,0 +1,496 @@
+:root {
+  --bg: #fbfaf7;
+  --panel: #fff;
+  --ink: #1e1c19;
+  --muted: #6d6862;
+  --line: #ddd7cd;
+  --red: #d24b3e;
+  --red-dark: #a03427;
+  --blue: #3c68c4;
+  --blue-dark: #274a95;
+  --cell: #f3ede0;
+  --cell-hover: #e6dcc6;
+  --accent: #b8892b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #191816;
+    --panel: #232120;
+    --ink: #ece7df;
+    --muted: #a29a90;
+    --line: #3c3835;
+    --cell: #322e29;
+    --cell-hover: #453f37;
+    --red: #e05a4c;
+    --blue: #5b83dd;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem clamp(0.75rem, 3vw, 3rem) 4rem;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    16px/1.55 system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+a {
+  color: var(--blue);
+}
+
+.masthead h1 {
+  margin: 0 0 0.25rem;
+  font-size: clamp(1.4rem, 3.5vw, 2rem);
+  letter-spacing: -0.02em;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin: 1.25rem 0;
+  padding: 0.7rem 0.85rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.3rem 0.55rem;
+}
+
+#size {
+  width: 4.2rem;
+}
+
+button {
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+.checkbox input {
+  accent-color: var(--accent);
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.board {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.5rem;
+}
+
+.hex-board {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Keep the whole board on screen rather than letting a wide rhombus run off
+     the bottom; the drawing centres itself in whatever box is left. */
+  max-height: 78vh;
+  touch-action: manipulation;
+  /* Stops a long press on a cell from raising iOS's selection callout, which
+     would otherwise fight with the erase gesture. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* --- board pieces --- */
+
+.hex {
+  fill: var(--cell);
+  stroke: var(--line);
+  stroke-width: 0.05;
+}
+
+.cell:hover .hex {
+  fill: var(--cell-hover);
+}
+
+.hex-marked {
+  fill: var(--cell-hover);
+  stroke: var(--accent);
+  stroke-width: 0.16;
+}
+
+.cell {
+  cursor: pointer;
+}
+
+.stone {
+  stroke-width: 0.06;
+}
+
+.stone.hidden {
+  display: none;
+}
+
+.stone-red {
+  fill: var(--red);
+  stroke: var(--red-dark);
+}
+
+.stone-blue {
+  fill: var(--blue);
+  stroke: var(--blue-dark);
+}
+
+.stone-last {
+  stroke: var(--ink);
+  stroke-width: 0.11;
+}
+
+.stone-winning {
+  stroke: var(--accent);
+  stroke-width: 0.16;
+}
+
+.stone-label {
+  fill: #fff;
+  font-size: 0.72px;
+  font-weight: 600;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.border {
+  stroke-width: 0.3;
+  stroke-linecap: round;
+}
+
+.border-red,
+.border-redp {
+  stroke: var(--red);
+}
+
+.border-blue,
+.border-bluep {
+  stroke: var(--blue);
+}
+
+text {
+  text-anchor: middle;
+  font-family: system-ui, sans-serif;
+}
+
+.axis {
+  fill: var(--muted);
+  font-size: 0.95px;
+}
+
+.axis-red {
+  fill: var(--red);
+  font-size: 0.88px;
+}
+
+.axis-blue {
+  fill: var(--blue);
+  font-size: 0.88px;
+}
+
+/* The name measured from the far edge: same colour, stepped back. */
+.axis-alt {
+  font-size: 0.76px;
+  opacity: 0.5;
+}
+
+.edge-name {
+  font-size: 1px;
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.edge-red {
+  fill: var(--red);
+}
+
+.edge-blue {
+  fill: var(--blue);
+}
+
+/* --- side panel --- */
+
+.side {
+  display: grid;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.85rem 1rem 1rem;
+}
+
+.card h2 {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.readout-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.coord {
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.standard {
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.variants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variants li {
+  padding: 0.1rem 0.42rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+}
+
+.variants .is-canonical {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--muted);
+}
+
+.coord-small {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.standard-small {
+  color: var(--muted);
+}
+
+#goto-form {
+  display: flex;
+  gap: 0.4rem;
+}
+
+#goto {
+  flex: 1;
+  min-width: 0;
+}
+
+.error {
+  margin: 0.45rem 0 0;
+  color: var(--red);
+  font-size: 0.82rem;
+  min-height: 1.1em;
+}
+
+.movelist {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.movelist th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  padding-bottom: 0.25rem;
+}
+
+.movelist td {
+  padding: 0.15rem 0.3rem 0.15rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.movelist .num {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  width: 2ch;
+}
+
+.dot {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+}
+
+.dot-red {
+  background: var(--red);
+}
+
+.dot-blue {
+  background: var(--blue);
+}
+
+.status {
+  margin: 0.7rem 0 0;
+  min-height: 1.4em;
+  font-weight: 600;
+}
+
+.status-red {
+  color: var(--red);
+}
+
+.status-blue {
+  color: var(--blue);
+}
+
+/* --- phones ---
+   The board is a wide rhombus and the screen is narrow, so every bit of the
+   surrounding chrome is trimmed to leave it more room, and the reading panel
+   is kept directly under the board where a tap can be seen to land. */
+
+@media (max-width: 560px) {
+  body {
+    padding: 0.75rem 0.5rem 2.5rem;
+  }
+
+  .masthead h1 {
+    font-size: 1.2rem;
+  }
+
+  .hide-narrow {
+    display: none;
+  }
+
+  .toolbar {
+    gap: 0.35rem 0.55rem;
+    margin: 0.6rem 0;
+    padding: 0.45rem 0.5rem;
+  }
+
+  .toolbar .spacer {
+    flex-basis: 100%;
+  }
+
+  input,
+  select,
+  button {
+    padding: 0.25rem 0.4rem;
+  }
+
+  .toolbar label,
+  input,
+  select,
+  button {
+    font-size: 0.82rem;
+  }
+
+  .board {
+    padding: 0.15rem;
+    margin: 0 -0.25rem;
+  }
+
+  main {
+    gap: 1rem;
+  }
+
+  .card {
+    padding: 0.7rem 0.8rem 0.8rem;
+  }
+
+  .coord {
+    font-size: 1.7rem;
+  }
+
+  /* Do not reserve a blank line for a win message that is usually absent. */
+  .status:empty {
+    min-height: 0;
+    margin: 0;
+  }
+}
+
+/* A phone held sideways has plenty of width and almost no height, so the
+   masthead gives way to the board. */
+@media (max-height: 500px) and (orientation: landscape) {
+  body {
+    padding-top: 0.6rem;
+  }
+
+  .masthead h1 {
+    font-size: 1.05rem;
+  }
+
+  .toolbar {
+    margin: 0.6rem 0;
+    padding: 0.4rem 0.5rem;
+  }
+}
+
+footer {
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.85rem;
+  max-width: 70ch;
+}
