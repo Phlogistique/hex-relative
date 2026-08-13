@@ -31,14 +31,23 @@ const NEIGHBOURS = [
   [1, 0], // right
 ];
 
-const MARGIN_X = 3.6; // room for two lines of row labels
-const MARGIN_Y = 4.2; // room for two lines of column labels and an edge name
+// Labels stand off the board by the same CLEARANCE on all four sides. A
+// hexagon reaches 1 above and below its centre but only HALF_WIDTH to either
+// side, so the row labels have to sit nearer their centres than the column
+// labels do — measuring both from the centre instead is what made the row
+// numbers crowd the board.
+const CLEARANCE = 0.9;
+const COL_LINE_1 = 1 + CLEARANCE;
+const COL_LINE_2 = COL_LINE_1 + 1.3;
+const ROW_LINE_1 = HALF_WIDTH + CLEARANCE;
+const ROW_LINE_2 = ROW_LINE_1 + 1.8; // digits need more room side by side
+
+const MARGIN_X = ROW_LINE_2 - HALF_WIDTH + 0.9;
+const MARGIN_Y = 4.2; // the two column lines plus an edge name
 
 // A column runs diagonally, gaining this much x per unit of y, so labels
 // placed on the continuation of a column follow the slant of the rhombus.
 const SLANT = Math.sqrt(3) / 3;
-const LINE_1 = 1.9; // how far past the board the inner label line sits
-const LINE_2 = 3.2; // and the outer one
 const BASELINE = 0.28; // drop from a label's centre to its baseline
 
 export function center(col, row) {
@@ -217,10 +226,10 @@ export class HexBoard {
 
     if (!relative) {
       for (let col = 0; col < size; col++) {
-        text(layer, ...above(col, 0, LINE_1), standard(col, 0)[0], "axis");
+        text(layer, ...above(col, 0, COL_LINE_1), standard(col, 0)[0], "axis");
         text(
           layer,
-          ...below(col, size - 1, LINE_1),
+          ...below(col, size - 1, COL_LINE_1),
           standard(col, 0)[0],
           "axis",
         );
@@ -228,8 +237,20 @@ export class HexBoard {
       for (let row = 0; row < size; row++) {
         const left = center(0, row);
         const right = center(size - 1, row);
-        text(layer, left.x - 1.6, left.y + BASELINE, `${row + 1}`, "axis");
-        text(layer, right.x + 1.6, right.y + BASELINE, `${row + 1}`, "axis");
+        text(
+          layer,
+          left.x - ROW_LINE_1,
+          left.y + BASELINE,
+          `${row + 1}`,
+          "axis",
+        );
+        text(
+          layer,
+          right.x + ROW_LINE_1,
+          right.y + BASELINE,
+          `${row + 1}`,
+          "axis",
+        );
       }
       return;
     }
@@ -240,10 +261,15 @@ export class HexBoard {
     for (let col = 0; col < size; col++) {
       const d = distances(col, 0, size);
       const { inner, outer } = scalePair(d.blue, d.bluePrime);
-      text(layer, ...above(col, 0, LINE_1), inner, "axis-blue");
-      text(layer, ...above(col, 0, LINE_2), outer, "axis-blue axis-alt");
-      text(layer, ...below(col, size - 1, LINE_1), inner, "axis-blue");
-      text(layer, ...below(col, size - 1, LINE_2), outer, "axis-blue axis-alt");
+      text(layer, ...above(col, 0, COL_LINE_1), inner, "axis-blue");
+      text(layer, ...above(col, 0, COL_LINE_2), outer, "axis-blue axis-alt");
+      text(layer, ...below(col, size - 1, COL_LINE_1), inner, "axis-blue");
+      text(
+        layer,
+        ...below(col, size - 1, COL_LINE_2),
+        outer,
+        "axis-blue axis-alt",
+      );
     }
 
     for (let row = 0; row < size; row++) {
@@ -251,12 +277,18 @@ export class HexBoard {
       const right = center(size - 1, row);
       const d = distances(0, row, size);
       const { inner, outer } = scalePair(d.red, d.redPrime);
-      text(layer, left.x - 1.5, left.y + BASELINE, inner, "axis-red");
-      text(layer, left.x - 3.3, left.y + BASELINE, outer, "axis-red axis-alt");
-      text(layer, right.x + 1.5, right.y + BASELINE, inner, "axis-red");
+      text(layer, left.x - ROW_LINE_1, left.y + BASELINE, inner, "axis-red");
       text(
         layer,
-        right.x + 3.3,
+        left.x - ROW_LINE_2,
+        left.y + BASELINE,
+        outer,
+        "axis-red axis-alt",
+      );
+      text(layer, right.x + ROW_LINE_1, right.y + BASELINE, inner, "axis-red");
+      text(
+        layer,
+        right.x + ROW_LINE_2,
         right.y + BASELINE,
         outer,
         "axis-red axis-alt",
@@ -267,12 +299,12 @@ export class HexBoard {
     // red' get a line of their own beyond the numbers; blue and blue' continue
     // the outer line past its ends, into the corners the rhombus leaves empty.
     const last = size - 1;
-    const [redX, redY] = below(last / 2, last, LINE_2 + 1.3);
-    const [redPX, redPY] = above(last / 2, 0, LINE_2 + 1.3);
+    const [redX, redY] = below(last / 2, last, COL_LINE_2 + 1.3);
+    const [redPX, redPY] = above(last / 2, 0, COL_LINE_2 + 1.3);
     text(layer, redPX, redPY, "red'", "edge-name edge-red");
     text(layer, redX, redY, "red", "edge-name edge-red");
-    const [blueX, blueY] = below(0, last, LINE_2);
-    const [bluePX, bluePY] = above(last, 0, LINE_2);
+    const [blueX, blueY] = below(0, last, COL_LINE_2);
+    const [bluePX, bluePY] = above(last, 0, COL_LINE_2);
     text(layer, blueX - 2.3, blueY, "blue", "edge-name edge-blue");
     text(layer, bluePX + 2.3, bluePY, "blue'", "edge-name edge-blue");
   }
