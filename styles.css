@@ -195,12 +195,7 @@ main {
   font-size: 0.72px;
   font-weight: 600;
   text-anchor: middle;
-  /* Centres the glyphs on the stone. The exactly-right offset is half the cap
-     height, which CSS spells 0.5cap — but Chromium floors the cap unit to 1px,
-     and this SVG's font-size is 0.72 user units, so cap is unusable here.
-     `central` uses the font's ascent and descent instead, which for digits
-     lands a third of a pixel high at any sane board size. */
-  dominant-baseline: central;
+  /* The baseline is set per label, from the font's measured cap height. */
   pointer-events: none;
 }
 

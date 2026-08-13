@@ -354,6 +354,7 @@ export class HexBoard {
         `stone stone-${move.color}${isLast ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
+        cell.label.setAttribute("y", digitBaseline(cell.label));
         cell.label.textContent = String(index + 1);
         cell.label.setAttribute("class", `stone-label on-${move.color}`);
       }
@@ -422,6 +423,26 @@ export class HexBoard {
     }
     return [];
   }
+}
+
+// Half the cap height is what puts a digit's ink on the centre of a stone:
+// a font's ascent and descent reserve room for accents and descenders that
+// digits never use, so dominant-baseline sits a little high. CSS spells the
+// right offset 0.5cap, but Chromium floors the cap unit to 1px and these
+// labels are 0.72 user units tall, so the cap height is measured instead.
+let capHalf = null;
+
+function digitBaseline(label) {
+  if (capHalf === null) {
+    const style = getComputedStyle(label);
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
+    const ink = ctx.measureText("0");
+    const half =
+      (ink.actualBoundingBoxAscent - ink.actualBoundingBoxDescent) / 2000;
+    capHalf = (half || 0.367) * parseFloat(style.fontSize);
+  }
+  return capHalf;
 }
 
 /**
