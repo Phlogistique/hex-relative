@@ -195,6 +195,7 @@ main {
   font-size: 0.72px;
   font-weight: 600;
   text-anchor: middle;
+  /* The baseline is set per label, from the font's measured cap height. */
   pointer-events: none;
 }
 
@@ -237,20 +238,6 @@ text {
 .axis-alt {
   font-size: 0.76px;
   opacity: 0.5;
-}
-
-.edge-name {
-  font-size: 1px;
-  font-style: italic;
-  opacity: 0.75;
-}
-
-.edge-red {
-  fill: var(--red);
-}
-
-.edge-blue {
-  fill: var(--blue);
 }
 
 /* --- side panel --- */

@@ -43,7 +43,7 @@ const ROW_LINE_1 = HALF_WIDTH + CLEARANCE;
 const ROW_LINE_2 = ROW_LINE_1 + 1.8; // digits need more room side by side
 
 const MARGIN_X = ROW_LINE_2 - HALF_WIDTH + 0.9;
-const MARGIN_Y = 4.2; // the two column lines plus an edge name
+const MARGIN_Y = COL_LINE_2 - 1 + 0.55; // clears the outer column line
 
 // The board's coloured outline. It is drawn just outside the hexagons rather
 // than centred on them, so it never runs across a stone on the edge.
@@ -213,7 +213,6 @@ export class HexBoard {
 
     const label = document.createElementNS(SVG_NS, "text");
     label.setAttribute("class", "stone-label");
-    label.setAttribute("y", 0.34);
     g.appendChild(label);
 
     g.addEventListener("mouseenter", () => this.onHover({ col, row }));
@@ -336,19 +335,6 @@ export class HexBoard {
         "axis-red axis-alt",
       );
     }
-
-    // Relative coordinates come with names for the edges themselves. red and
-    // red' get a line of their own beyond the numbers; blue and blue' continue
-    // the outer line past its ends, into the corners the rhombus leaves empty.
-    const last = size - 1;
-    const [redX, redY] = below(last / 2, last, COL_LINE_2 + 1.3);
-    const [redPX, redPY] = above(last / 2, 0, COL_LINE_2 + 1.3);
-    text(layer, redPX, redPY, "red'", "edge-name edge-red");
-    text(layer, redX, redY, "red", "edge-name edge-red");
-    const [blueX, blueY] = below(0, last, COL_LINE_2);
-    const [bluePX, bluePY] = above(last, 0, COL_LINE_2);
-    text(layer, blueX - 2.3, blueY, "blue", "edge-name edge-blue");
-    text(layer, bluePX + 2.3, bluePY, "blue'", "edge-name edge-blue");
   }
 
   /** Repaint stones, move numbers and highlights without rebuilding the SVG. */
@@ -368,6 +354,7 @@ export class HexBoard {
         `stone stone-${move.color}${isLast ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
+        cell.label.setAttribute("y", digitBaseline(cell.label));
         cell.label.textContent = String(index + 1);
         cell.label.setAttribute("class", `stone-label on-${move.color}`);
       }
@@ -436,6 +423,32 @@ export class HexBoard {
     }
     return [];
   }
+}
+
+// Where a digit's baseline has to sit for its ink to be centred on the stone.
+// A font's ascent and descent leave room for accents and descenders that digits
+// never use, so centring on those puts the number too low; what matters is half
+// the cap height. system-ui resolves to a different face on every platform, so
+// this is measured from the font actually in use rather than assumed.
+const FALLBACK_INK_CENTRE = 0.367; // em, typical of a sans-serif digit
+let inkCentre = null;
+
+function digitBaseline(sample) {
+  if (inkCentre !== null) return inkCentre;
+  const style = getComputedStyle(sample);
+  let em = FALLBACK_INK_CENTRE;
+  try {
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
+    const m = ctx.measureText("0");
+    const measured =
+      (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2000;
+    if (measured > 0.2 && measured < 0.6) em = measured;
+  } catch {
+    // measureText's ink metrics are missing; the fallback is close enough
+  }
+  inkCentre = em * (parseFloat(style.fontSize) || 1);
+  return inkCentre;
 }
 
 /**
