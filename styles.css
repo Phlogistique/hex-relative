@@ -140,12 +140,14 @@ main {
   -webkit-touch-callout: none;
 }
 
-/* --- board pieces --- */
+/* --- board pieces ---
+   Lengths inside the SVG are fractions of a hexagon's circumradius, which
+   board.js publishes as --hex on the <svg> element. */
 
 .hex {
   fill: var(--cell);
   stroke: var(--line);
-  stroke-width: 0.05;
+  stroke-width: calc(var(--hex, 100) * 0.05);
 }
 
 .cell:hover .hex {
@@ -155,7 +157,7 @@ main {
 .hex-marked {
   fill: var(--cell-hover);
   stroke: var(--accent);
-  stroke-width: 0.16;
+  stroke-width: calc(var(--hex, 100) * 0.16);
 }
 
 .cell {
@@ -163,7 +165,7 @@ main {
 }
 
 .stone {
-  stroke-width: 0.06;
+  stroke-width: calc(var(--hex, 100) * 0.06);
 }
 
 .stone.hidden {
@@ -182,20 +184,24 @@ main {
 
 .stone-last {
   stroke: var(--ink);
-  stroke-width: 0.11;
+  stroke-width: calc(var(--hex, 100) * 0.11);
 }
 
 .stone-winning {
   stroke: var(--accent);
-  stroke-width: 0.16;
+  stroke-width: calc(var(--hex, 100) * 0.16);
 }
 
 .stone-label {
   fill: #fff;
-  font-size: 0.72px;
+  font-size: calc(var(--hex, 100) * 0.72px);
   font-weight: 600;
   text-anchor: middle;
-  /* The baseline is set per label, from the font's measured cap height. */
+  /* Half the cap height is exactly what centres a digit's ink on the stone:
+     a font's ascent and descent reserve room for accents and descenders that
+     digits never use, so dominant-baseline sits a little high. `cap` is the
+     font's own cap height, so this follows whatever system-ui resolves to. */
+  transform: translateY(0.5cap);
   pointer-events: none;
 }
 
@@ -221,22 +227,22 @@ text {
 
 .axis {
   fill: var(--muted);
-  font-size: 0.95px;
+  font-size: calc(var(--hex, 100) * 0.95px);
 }
 
 .axis-red {
   fill: var(--red);
-  font-size: 0.88px;
+  font-size: calc(var(--hex, 100) * 0.88px);
 }
 
 .axis-blue {
   fill: var(--blue);
-  font-size: 0.88px;
+  font-size: calc(var(--hex, 100) * 0.88px);
 }
 
 /* The name measured from the far edge: same colour, stepped back. */
 .axis-alt {
-  font-size: 0.76px;
+  font-size: calc(var(--hex, 100) * 0.76px);
   opacity: 0.5;
 }
 
