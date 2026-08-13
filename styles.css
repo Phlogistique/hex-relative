@@ -199,7 +199,7 @@ main {
 }
 
 .border {
-  stroke-width: 0.3;
+  /* width is set on each segment, since the geometry depends on it */
   stroke-linecap: round;
 }
 
@@ -369,10 +369,37 @@ text {
   border-top: 1px solid var(--line);
 }
 
+.movelist .state {
+  cursor: pointer;
+}
+
+.movelist .state:hover td {
+  background: var(--cell);
+}
+
+.movelist .is-current td {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* Moves that have been stepped back past, and would be replaced by playing on. */
+.movelist .is-future td {
+  opacity: 0.42;
+}
+
 .movelist .num {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   width: 2ch;
+}
+
+.nav {
+  display: inline-flex;
+  gap: 0.2rem;
+}
+
+.nav button {
+  padding: 0.25rem 0.45rem;
+  line-height: 1.1;
 }
 
 .dot {

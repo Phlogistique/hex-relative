@@ -56,9 +56,40 @@
         <span class="hide-narrow">Move </span>numbers</label
       >
       <span class="spacer"></span>
-      <button id="undo" type="button" title="Take back the last stone (u)">
-        Undo
-      </button>
+      <span class="nav">
+        <button
+          id="first"
+          type="button"
+          title="First position (home)"
+          aria-label="First position"
+        >
+          &#x23EE;
+        </button>
+        <button
+          id="prev"
+          type="button"
+          title="Previous position (left arrow)"
+          aria-label="Previous position"
+        >
+          &#x25C0;
+        </button>
+        <button
+          id="next"
+          type="button"
+          title="Next position (right arrow)"
+          aria-label="Next position"
+        >
+          &#x25B6;
+        </button>
+        <button
+          id="last"
+          type="button"
+          title="Last position (end)"
+          aria-label="Last position"
+        >
+          &#x23ED;
+        </button>
+      </span>
       <button id="clear" type="button" title="Empty the board">Clear</button>
       <button
         id="example"
@@ -115,7 +146,11 @@
         </section>
 
         <section class="card">
-          <h2 title="Stones in playing order, named both ways">Stones</h2>
+          <h2
+            title="Stones in playing order, named both ways. Click a row to jump to that position."
+          >
+            Stones
+          </h2>
           <div id="moves"></div>
         </section>
       </aside>
@@ -129,7 +164,7 @@
         <a
           href="https://www.hexwiki.net/index.php/User:Mason#Relative_Coordinates"
           >HexWiki</a
-        >. Independent implementation, unaffiliated with hexworld.org.
+        >.
       </p>
     </footer>
 

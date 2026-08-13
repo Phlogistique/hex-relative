@@ -17,7 +17,10 @@ const ui = {
   labels: el("labels"),
   numbers: el("numbers"),
   mode: el("mode"),
-  undo: el("undo"),
+  first: el("first"),
+  prev: el("prev"),
+  next: el("next"),
+  last: el("last"),
   clear: el("clear"),
   example: el("example"),
   share: el("share"),
@@ -59,12 +62,15 @@ function placeStone(cell, event) {
 
   const colour = nextColour(event);
   const occupied = board.stoneAt(cell.col, cell.row);
-  // Clicking a stone takes it off again, which is the quickest way to undo a
-  // misclick — except that with a colour forced, clicking the other colour
-  // overwrites it, which is quicker for setting a position up.
-  const replacing =
-    occupied && colour && colour !== occupied && ui.mode.value !== "alternate";
-  board.play(cell.col, cell.row, occupied && !replacing ? null : colour);
+  // Only erasing takes a stone off. While alternating, an occupied cell is
+  // simply not playable and a click on one does nothing; with a colour forced,
+  // it may be overwritten with the other colour, for setting positions up.
+  const forced = ui.mode.value === "red" || ui.mode.value === "blue";
+  if (colour === null) {
+    if (occupied) board.play(cell.col, cell.row, null);
+  } else if (!occupied || (forced && colour !== occupied)) {
+    board.play(cell.col, cell.row, colour);
+  }
   refresh();
 }
 
@@ -101,21 +107,30 @@ function showReadout(cell) {
     </ul>`;
 }
 
+/** The stone list doubles as the history: every row is a position to jump to. */
 function renderMoves() {
   if (!board.moves.length) {
     ui.moves.innerHTML = `<p class="placeholder">—</p>`;
     return;
   }
-  const rows = board.moves
-    .map(
-      (m, i) => `<tr>
-        <td class="num">${i + 1}</td>
-        <td><span class="dot dot-${m.color}"></span></td>
-        <td class="coord-small">${relative(m.col, m.row, board.size)}</td>
-        <td class="standard-small">${standard(m.col, m.row)}</td>
-      </tr>`,
-    )
-    .join("");
+  const row = (n, inner) =>
+    `<tr class="state${n === board.cursor ? " is-current" : ""}${
+      n > board.cursor ? " is-future" : ""
+    }" data-n="${n}" tabindex="0">${inner}</tr>`;
+
+  const rows = [
+    row(0, `<td class="num">0</td><td></td><td colspan="2">empty board</td>`),
+    ...board.moves.map((m, i) =>
+      row(
+        i + 1,
+        `<td class="num">${i + 1}</td>
+         <td><span class="dot dot-${m.color}"></span></td>
+         <td class="coord-small">${relative(m.col, m.row, board.size)}</td>
+         <td class="standard-small">${standard(m.col, m.row)}</td>`,
+      ),
+    ),
+  ].join("");
+
   ui.moves.innerHTML = `<table class="movelist">
     <thead><tr><th></th><th></th><th>relative</th><th>standard</th></tr></thead>
     <tbody>${rows}</tbody></table>`;
@@ -154,14 +169,16 @@ function writeHash() {
   const encoded = board.moves
     .map((m) => `${m.color[0]}${standard(m.col, m.row)}`)
     .join(",");
-  const hash = `#${board.size}${encoded ? ":" + encoded : ""}`;
+  const rewound = board.cursor < board.moves.length ? `@${board.cursor}` : "";
+  const hash = `#${board.size}${encoded ? ":" + encoded : ""}${rewound}`;
   history.replaceState(null, "", hash);
 }
 
 function readHash(hash) {
   const text = decodeURIComponent(hash.replace(/^#/, ""));
   if (!text) return null;
-  const [sizeText, movesText = ""] = text.split(":");
+  const [position, cursorText] = text.split("@");
+  const [sizeText, movesText = ""] = position.split(":");
   const size = Number(sizeText);
   if (!Number.isInteger(size) || size < 2 || size > MAX_SIZE) return null;
   const moves = [];
@@ -171,13 +188,17 @@ function readHash(hash) {
     if (!cell) return null;
     moves.push({ ...cell, color });
   }
-  return { size, moves };
+  const cursor = cursorText === undefined ? moves.length : Number(cursorText);
+  if (!Number.isInteger(cursor) || cursor < 0 || cursor > moves.length) {
+    return null;
+  }
+  return { size, moves, cursor };
 }
 
 function load(state) {
   ui.size.value = state.size;
   board.setSize(state.size);
-  board.setMoves(state.moves);
+  board.setMoves(state.moves, state.cursor);
   lastTouched = null;
   refresh();
 }
@@ -189,8 +210,19 @@ ui.labels.addEventListener("change", () => board.setLabels(ui.labels.value));
 ui.numbers.addEventListener("change", () =>
   board.setShowNumbers(ui.numbers.checked),
 );
-ui.undo.addEventListener("click", () => {
-  board.undo();
+const step = (method) => () => {
+  board[method]();
+  refresh();
+};
+ui.first.addEventListener("click", step("first"));
+ui.prev.addEventListener("click", step("prev"));
+ui.next.addEventListener("click", step("next"));
+ui.last.addEventListener("click", step("last"));
+
+ui.moves.addEventListener("click", (event) => {
+  const row = event.target.closest("tr.state");
+  if (!row) return;
+  board.goto(Number(row.dataset.n));
   refresh();
 });
 ui.clear.addEventListener("click", () => {
@@ -227,12 +259,20 @@ ui.gotoForm.addEventListener("submit", (event) => {
   showReadout(cell);
 });
 
+const KEYS = {
+  ArrowLeft: "prev",
+  ArrowRight: "next",
+  Home: "first",
+  End: "last",
+};
+
 document.addEventListener("keydown", (event) => {
   if (event.target.matches("input, select, textarea")) return;
-  if (event.key === "u" || event.key === "Backspace") {
-    board.undo();
-    refresh();
-  }
+  const method = KEYS[event.key];
+  if (!method) return;
+  event.preventDefault();
+  board[method]();
+  refresh();
 });
 
 window.addEventListener("hashchange", () => {

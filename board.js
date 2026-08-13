@@ -36,7 +36,7 @@ const NEIGHBOURS = [
 // side, so the row labels have to sit nearer their centres than the column
 // labels do — measuring both from the centre instead is what made the row
 // numbers crowd the board.
-const CLEARANCE = 0.9;
+const CLEARANCE = 1.05;
 const COL_LINE_1 = 1 + CLEARANCE;
 const COL_LINE_2 = COL_LINE_1 + 1.3;
 const ROW_LINE_1 = HALF_WIDTH + CLEARANCE;
@@ -44,6 +44,10 @@ const ROW_LINE_2 = ROW_LINE_1 + 1.8; // digits need more room side by side
 
 const MARGIN_X = ROW_LINE_2 - HALF_WIDTH + 0.9;
 const MARGIN_Y = 4.2; // the two column lines plus an edge name
+
+// The board's coloured outline. It is drawn just outside the hexagons rather
+// than centred on them, so it never runs across a stone on the edge.
+const BORDER_WIDTH = 0.3;
 
 // A column runs diagonally, gaining this much x per unit of y, so labels
 // placed on the continuation of a column follow the slant of the rhombus.
@@ -63,6 +67,7 @@ export class HexBoard {
     this.onHover = options.onHover ?? (() => {});
     this.onSelect = options.onSelect ?? (() => {});
     this.moves = []; // [{col, row, color}], in order
+    this.cursor = 0; // how many of them are on the board right now
     this.marked = null;
     this.cells = new Map(); // "col,row" -> {hex, stone, label}
     this.render();
@@ -72,36 +77,67 @@ export class HexBoard {
     return `${col},${row}`;
   }
 
+  /** The moves actually on the board: everything up to the cursor. */
+  visible() {
+    return this.moves.slice(0, this.cursor);
+  }
+
   stoneAt(col, row) {
-    const move = this.moves.find((m) => m.col === col && m.row === row);
+    const move = this.visible().find((m) => m.col === col && m.row === row);
     return move ? move.color : null;
   }
 
-  /** Place, replace or remove a stone, then repaint. */
+  /**
+   * Place or remove a stone. Editing while rewound throws away the moves that
+   * were ahead, which is the usual way a variation replaces a line.
+   */
   play(col, row, color) {
-    this.moves = this.moves.filter((m) => !(m.col === col && m.row === row));
+    this.moves = this.visible().filter(
+      (m) => !(m.col === col && m.row === row),
+    );
     if (color) this.moves.push({ col, row, color });
+    this.cursor = this.moves.length;
     this.paint();
   }
 
-  undo() {
-    this.moves.pop();
+  /** Show the position after `n` moves; 0 is the empty board. */
+  goto(n) {
+    this.cursor = Math.max(0, Math.min(this.moves.length, n));
     this.paint();
+  }
+
+  first() {
+    this.goto(0);
+  }
+
+  prev() {
+    this.goto(this.cursor - 1);
+  }
+
+  next() {
+    this.goto(this.cursor + 1);
+  }
+
+  last() {
+    this.goto(this.moves.length);
   }
 
   clear() {
     this.moves = [];
+    this.cursor = 0;
     this.paint();
   }
 
-  setMoves(moves) {
+  setMoves(moves, cursor = moves.length) {
     this.moves = moves.slice();
+    this.cursor = Math.max(0, Math.min(this.moves.length, cursor));
     this.paint();
   }
 
   setSize(size) {
     this.size = size;
     this.moves = this.moves.filter((m) => m.col < size && m.row < size);
+    this.cursor = Math.min(this.cursor, this.moves.length);
     this.render();
   }
 
@@ -207,11 +243,17 @@ export class HexBoard {
           if (!side) continue;
           const [ax, ay] = VERTICES[k];
           const [bx, by] = VERTICES[(k + 1) % 6];
+          // Shift the segment out along its own normal by half the stroke, so
+          // the whole width of it lies beyond the cell.
+          const mx = (ax + bx) / 2;
+          const my = (ay + by) / 2;
+          const out = BORDER_WIDTH / 2 / Math.hypot(mx, my);
           const line = document.createElementNS(SVG_NS, "line");
-          line.setAttribute("x1", x + ax);
-          line.setAttribute("y1", y + ay);
-          line.setAttribute("x2", x + bx);
-          line.setAttribute("y2", y + by);
+          line.setAttribute("x1", x + ax + mx * out);
+          line.setAttribute("y1", y + ay + my * out);
+          line.setAttribute("x2", x + bx + mx * out);
+          line.setAttribute("y2", y + by + my * out);
+          line.setAttribute("stroke-width", BORDER_WIDTH);
           line.setAttribute("class", `border border-${side}`);
           layer.appendChild(line);
         }
@@ -317,10 +359,10 @@ export class HexBoard {
       hex.setAttribute("class", "hex");
     }
 
-    this.moves.forEach((move, index) => {
+    this.visible().forEach((move, index) => {
       const cell = this.cells.get(this.key(move.col, move.row));
       if (!cell) return;
-      const isLast = index === this.moves.length - 1;
+      const isLast = index === this.cursor - 1;
       cell.stone.setAttribute(
         "class",
         `stone stone-${move.color}${isLast ? " stone-last" : ""}`,
@@ -358,7 +400,7 @@ export class HexBoard {
   connection(color) {
     const { size } = this;
     const owner = new Map(
-      this.moves.map((m) => [this.key(m.col, m.row), m.color]),
+      this.visible().map((m) => [this.key(m.col, m.row), m.color]),
     );
     const start = [];
     for (let i = 0; i < size; i++) {
