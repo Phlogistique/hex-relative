@@ -373,6 +373,11 @@ text {
   opacity: 0.42;
 }
 
+.movelist .turn {
+  color: var(--muted);
+  font-style: italic;
+}
+
 .movelist .num {
   color: var(--muted);
   font-variant-numeric: tabular-nums;

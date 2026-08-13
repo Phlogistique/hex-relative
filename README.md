@@ -41,6 +41,12 @@ Tap or click to place a stone and again to take it off; shift-click or long-pres
 a touch screen, where there is no hover. Step through the game with the arrow buttons, `Home`, the
 arrow keys and `End`, or click any row of the stone list to jump to that position.
 
+A pass and a swap are moves like any other and keep their place in that list. The swap is the pie
+rule as hexworld records it: the board is reflected across its long diagonal and every stone changes
+colour, which makes it its own undo. A pass is also what lets a one-colour position exist at all —
+placing with `red only` puts one in wherever the turn would not otherwise come round, so that the
+position can still be written in a format that infers the colours from the order of play.
+
 ## The URL
 
 The fragment is [hexworld.org](https://hexworld.org/board/)'s, so a board carries between the two by
@@ -52,17 +58,19 @@ Moves run together — `d10j9d5` — since a letter-then-digits coordinate ends 
 starts. The comma between the two move lists is where the history cursor sits, so `#13,d10j9,d5` is
 three moves seen from the second. The `n` flag turns on move numbers; hexworld's `r<n>`, `m` and
 `c<n>` for rotation, mirroring and colour scheme are read past, and the page says so when a link
-carried one. Its `:s :S :p :rb :rw :fb :fw` — swap, pass, resignation, forfeit — are read past too,
-except `:p`, which changes the turn.
+carried one.
+
+`:p` is a pass and `:s` a swap, both kept in the history. Two red stones running are `a1:pb1`, and a
+blue-first position starts with a pass: `:pa1`. hexworld's `:S` swap-sides only relabels the colours
+on screen, and `:rb :rw :fb :fw` end the game without touching the board, so those are read past.
 
 As an addition, a move may also be written as a relative coordinate when separated by a full stop
 from its neighbours, since `44` and `54'` do not end where the next one starts:
 
     #13,44.54'.5'4
 
-Positions that do not simply alternate from red cannot be written in hexworld's format, which infers
-the colours rather than storing them, so those keep an explicit spelling of their own
-(`#9:ra1,rb1`), which is also still read for older links.
+Every position this board can show goes out in that format, passes included. An older spelling of
+its own (`#9:ra1,rb1`) is still read, so links shared before are not broken.
 
 ## Layout
 

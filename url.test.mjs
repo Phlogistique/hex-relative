@@ -10,8 +10,13 @@ import { formatHash, parseHash } from "./url.js";
 
 const MAX = 26;
 const read = (hash) => parseHash(hash, MAX);
+const LETTERS = "abcdefghijklmnopqrstuvwxyz";
 const cells = (state) =>
-  state.moves.map((m) => `${m.color[0]}${"abcdefghijklmnopqrstuvwxyz"[m.col]}${m.row + 1}`);
+  state.moves.map((m) =>
+    m.type === "move"
+      ? `${m.color[0]}${LETTERS[m.col]}${m.row + 1}`
+      : `${m.color[0]}:${m.type}`,
+  );
 
 test("reads a hexworld board", () => {
   const state = read("#13,d10j9d5");
@@ -35,10 +40,34 @@ test("colours alternate from red, and a pass changes the turn", () => {
     read("#5,a1b1c1").moves.map((m) => m.color),
     ["red", "blue", "red"],
   );
+  // a pass is a move of its own, and the stone after it is red again
+  assert.deepEqual(cells(read("#5,a1:pb1")), ["ra1", "b:pass", "rb1"]);
+});
+
+test("a pass is what lets a one-colour position be written at all", () => {
+  const reds = read("#5,a1:pb1:pc1");
   assert.deepEqual(
-    read("#5,a1:pb1").moves.map((m) => m.color),
-    ["red", "red"],
+    reds.moves.filter((m) => m.type === "move").map((m) => m.color),
+    ["red", "red", "red"],
   );
+  assert.equal(
+    formatHash({ ...reds, cursor: reds.moves.length }),
+    "#5,a1:pb1:pc1",
+  );
+
+  // and blue-only starts with one
+  const blues = read("#5,:pa1:pb1");
+  assert.deepEqual(
+    blues.moves.filter((m) => m.type === "move").map((m) => m.color),
+    ["blue", "blue"],
+  );
+});
+
+test("a swap keeps its place in the history", () => {
+  const state = read("#5,a2:s");
+  assert.deepEqual(cells(state), ["ra2", "b:swap"]);
+  assert.equal(state.ignored.length, 0);
+  assert.equal(formatHash({ ...state, cursor: 2 }), "#5,a2:s");
 });
 
 test("reads hexworld's flags, and says which it could not use", () => {
@@ -49,7 +78,7 @@ test("reads hexworld's flags, and says which it could not use", () => {
     "mirroring",
     "rotation",
   ]);
-  assert.deepEqual(read("#13,d10:sj9").ignored, ["swap"]);
+  assert.deepEqual(read("#13,d10:Sj9").ignored, ["swap-sides"]);
   assert.deepEqual(read("#13,d10:rb").ignored, ["resignation"]);
   assert.deepEqual(read("#13,d10").ignored, []);
 });
@@ -81,18 +110,15 @@ test("still opens the links this board used to write", () => {
   const state = read("#13:rd10,bj9,rd5@2");
   assert.deepEqual(cells(state), ["rd10", "bj9", "rd5"]);
   assert.equal(state.cursor, 2);
-  // that spelling carries colours, so it can hold a non-alternating position
-  assert.deepEqual(
-    read("#13:rd10,rj9").moves.map((m) => m.color),
-    ["red", "red"],
-  );
+  // that spelling stored the colours, so a pass goes in to reproduce them
+  assert.deepEqual(cells(read("#13:rd10,rj9")), ["rd10", "b:pass", "rj9"]);
 });
 
 test("writes hexworld's format, and reads its own writing back", () => {
   const moves = [
-    { col: 3, row: 9, color: "red" },
-    { col: 9, row: 8, color: "blue" },
-    { col: 3, row: 4, color: "red" },
+    { type: "move", col: 3, row: 9, color: "red" },
+    { type: "move", col: 9, row: 8, color: "blue" },
+    { type: "move", col: 3, row: 4, color: "red" },
   ];
   assert.equal(
     formatHash({ size: 13, moves, cursor: 3, numbers: false }),
@@ -121,12 +147,18 @@ test("writes hexworld's format, and reads its own writing back", () => {
   }
 });
 
-test("keeps the explicit spelling when the colours would not survive", () => {
-  const setup = [
-    { col: 0, row: 0, color: "red" },
-    { col: 1, row: 0, color: "red" },
-  ];
-  const hash = formatHash({ size: 9, moves: setup, cursor: 2, numbers: true });
-  assert.equal(hash, "#9:ra1,rb1");
-  assert.deepEqual(read(hash).moves, setup);
+test("every history round-trips, passes and swaps included", () => {
+  for (const hash of [
+    "#13,d10j9d5",
+    "#13n,d10j9,d5",
+    "#13,,d10j9d5",
+    "#5,a1:pb1:pc1",
+    "#5,:pa1:pb1",
+    "#5,a2:s",
+    "#5n,a2:s,b3",
+    "#9,a1:p:pb2",
+  ]) {
+    const state = read(hash);
+    assert.equal(formatHash(state), hash, hash);
+  }
 });

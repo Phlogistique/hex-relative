@@ -68,27 +68,92 @@ export class HexBoard {
     return `${col},${row}`;
   }
 
-  /** The moves actually on the board: everything up to the cursor. */
-  visible() {
-    return this.moves.slice(0, this.cursor);
+  /**
+   * Replay the history up to the cursor into the stones now on the board.
+   *
+   * A swap is not a stone but a transformation of the ones already played: it
+   * reflects the board across its long diagonal and changes every colour,
+   * which is the pie rule as hexworld records it. So the position cannot be
+   * read off the list of moves — it has to be played through.
+   */
+  position() {
+    let stones = new Map(); // "col,row" -> { color, number }
+    let last = null;
+    this.moves.slice(0, this.cursor).forEach((move, index) => {
+      if (move.type === "move") {
+        last = this.key(move.col, move.row);
+        stones.set(last, { color: move.color, number: index + 1 });
+      } else if (move.type === "swap") {
+        const mirrored = new Map();
+        for (const [at, stone] of stones) {
+          const [col, row] = at.split(",").map(Number);
+          mirrored.set(this.key(row, col), {
+            color: stone.color === "red" ? "blue" : "red",
+            number: stone.number,
+          });
+        }
+        stones = mirrored;
+        if (last) {
+          const [col, row] = last.split(",").map(Number);
+          last = this.key(row, col);
+        }
+      }
+      // a pass leaves the board alone, and only costs its turn
+    });
+    return { stones, last };
+  }
+
+  /** Whose turn it is after everything up to the cursor. */
+  toPlay() {
+    const previous = this.moves[this.cursor - 1];
+    return previous && previous.color === "red" ? "blue" : "red";
   }
 
   stoneAt(col, row) {
-    const move = this.visible().find((m) => m.col === col && m.row === row);
-    return move ? move.color : null;
+    return this.position().stones.get(this.key(col, row))?.color ?? null;
   }
 
   /**
    * Place or remove a stone. Editing while rewound throws away the moves that
    * were ahead, which is the usual way a variation replaces a line.
+   *
+   * A stone of the colour that is not to move is preceded by a pass, so the
+   * history always alternates and can be written in hexworld's format, where
+   * the colours are inferred from the order rather than stored.
    */
   play(col, row, color) {
-    this.moves = this.visible().filter(
-      (m) => !(m.col === col && m.row === row),
-    );
-    if (color) this.moves.push({ col, row, color });
-    this.cursor = this.moves.length;
+    const at = this.key(col, row);
+    const kept = [];
+    for (const move of this.moves.slice(0, this.cursor)) {
+      if (move.type !== "move" || this.key(move.col, move.row) !== at) {
+        kept.push(move);
+      }
+    }
+    this.moves = kept;
+    this.cursor = kept.length;
+    if (color) {
+      if (this.toPlay() !== color) this.add({ type: "pass" });
+      this.add({ type: "move", col, row });
+    }
     this.paint();
+  }
+
+  /** A turn that puts down no stone. */
+  pass() {
+    this.add({ type: "pass" });
+    this.paint();
+  }
+
+  /** The pie rule: reflect the board and change every colour. */
+  swap() {
+    this.add({ type: "swap" });
+    this.paint();
+  }
+
+  add(move) {
+    this.moves = this.moves.slice(0, this.cursor);
+    this.moves.push({ ...move, color: this.toPlay() });
+    this.cursor = this.moves.length;
   }
 
   /** Show the position after `n` moves; 0 is the empty board. */
@@ -127,7 +192,9 @@ export class HexBoard {
 
   setSize(size) {
     this.size = size;
-    this.moves = this.moves.filter((m) => m.col < size && m.row < size);
+    this.moves = this.moves.filter(
+      (m) => m.type !== "move" || (m.col < size && m.row < size),
+    );
     this.cursor = Math.min(this.cursor, this.moves.length);
     this.render();
   }
@@ -368,20 +435,20 @@ export class HexBoard {
       hex.setAttribute("class", "hex");
     }
 
-    this.visible().forEach((move, index) => {
-      const cell = this.cells.get(this.key(move.col, move.row));
-      if (!cell) return;
-      const isLast = index === this.cursor - 1;
+    const { stones, last } = this.position();
+    for (const [at, stone] of stones) {
+      const cell = this.cells.get(at);
+      if (!cell) continue;
       cell.stone.setAttribute(
         "class",
-        `stone stone-${move.color}${isLast ? " stone-last" : ""}`,
+        `stone stone-${stone.color}${at === last ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
         cell.label.setAttribute("y", inkHalf(cell.label));
-        cell.label.textContent = String(index + 1);
-        cell.label.setAttribute("class", `stone-label on-${move.color}`);
+        cell.label.textContent = String(stone.number);
+        cell.label.setAttribute("class", `stone-label on-${stone.color}`);
       }
-    });
+    }
 
     if (this.marked) {
       const cell = this.cells.get(this.key(this.marked.col, this.marked.row));
@@ -409,13 +476,12 @@ export class HexBoard {
    */
   connection(color) {
     const { size } = this;
-    const owner = new Map(
-      this.visible().map((m) => [this.key(m.col, m.row), m.color]),
-    );
+    const owner = this.position().stones;
     const start = [];
     for (let i = 0; i < size; i++) {
       const cell = color === "red" ? { col: i, row: 0 } : { col: 0, row: i };
-      if (owner.get(this.key(cell.col, cell.row)) === color) start.push(cell);
+      if (owner.get(this.key(cell.col, cell.row))?.color === color)
+        start.push(cell);
     }
 
     const from = new Map();
@@ -439,7 +505,7 @@ export class HexBoard {
         const next = { col: cell.col + dc, row: cell.row + dr };
         const key = this.key(next.col, next.row);
         if (outsideSide(next.col, next.row, size)) continue;
-        if (from.has(key) || owner.get(key) !== color) continue;
+        if (from.has(key) || owner.get(key)?.color !== color) continue;
         from.set(key, cell);
         queue.push(next);
       }

@@ -11,8 +11,14 @@
  * history cursor sits, so `#13,d10j9,d5` is three moves seen from the second.
  * Flags are `n` for move numbers, and `r<n>`, `m`, `c<n>` for hexworld's
  * rotation, mirroring and colour scheme, which this board does not have and
- * reads past. The tokens `:s :S :p :rb :rw :fb :fw` are hexworld's swap, pass,
- * resignation and forfeit; only pass has a meaning here, as a change of turn.
+ * reads past.
+ *
+ * A pass, `:p`, and a swap, `:s`, are moves like any other and keep their
+ * place in the history. Passes are also what let a position that does not
+ * alternate be written down at all, since the format infers the colours from
+ * the order rather than storing them: two red stones running are `a1:pb1`.
+ * hexworld's `:S` swap-sides only relabels colours on screen, and `:rb :rw
+ * :fb :fw` end the game without touching the board, so those are read past.
  *
  * As an addition, a move may also be written as a relative coordinate, if it
  * is separated by a full stop from its neighbours, since `44` and `54'` do not
@@ -23,6 +29,8 @@ import { parse as parseCoord, standard } from "./mason.js";
 const HEAD = /^(\d+)(?:x(\d+))?((?:r\d+|m|n|c\d+)*)$/;
 const TOKEN = /^([a-z]+[1-9]\d*|:s|:S|:p|:rb|:rw|:fb|:fw)/;
 const LEGACY = /^(\d+):/;
+
+const colour = (red) => (red ? "red" : "blue");
 
 /**
  * Read a fragment. Returns {size, moves, cursor, numbers, ignored} or null if
@@ -56,64 +64,74 @@ function parseHexworld(text, maxSize) {
 
   const ignored = new Set();
   for (const flag of parts[3].match(/r\d+|m|c\d+/g) ?? []) {
-    ignored.add(flag[0] === "r" ? "rotation" : flag === "m" ? "mirroring" : "colours");
+    ignored.add(
+      flag[0] === "r" ? "rotation" : flag === "m" ? "mirroring" : "colours",
+    );
   }
 
   const moves = [];
   let red = true; // hexworld's first player is the one joining top to bottom
-  for (const token of tokenise(played + "," + ahead)) {
-    if (token === ",") continue;
-    if (token[0] === ":") {
-      if (token === ":p") red = !red;
-      else if (token === ":s" || token === ":S") ignored.add("swap");
-      else ignored.add("resignation");
+  let cursor = null;
+
+  for (const token of tokenise(played, ahead)) {
+    if (token === CURSOR) {
+      cursor = moves.length;
+      continue;
+    }
+    if (token === ":S") {
+      ignored.add("swap-sides");
+      continue;
+    }
+    if (token[0] === ":" && token.length === 3) {
+      ignored.add("resignation");
+      continue;
+    }
+    if (token === ":p" || token === ":s") {
+      moves.push({
+        type: token === ":p" ? "pass" : "swap",
+        color: colour(red),
+      });
+      red = !red;
       continue;
     }
     const cell = parseCoord(token, size);
     if (!cell) return null;
-    moves.push({ ...cell, color: red ? "red" : "blue" });
+    moves.push({ type: "move", ...cell, color: colour(red) });
     red = !red;
   }
-
-  // The cursor is however many moves fell before the separating comma.
-  const beforeCursor = [...tokenise(played)].filter(
-    (t) => t !== "," && t[0] !== ":",
-  ).length;
 
   return {
     size,
     moves,
-    cursor: text.includes(",") ? beforeCursor : moves.length,
+    cursor: cursor ?? moves.length,
     numbers: parts[3].includes("n"),
     ignored: [...ignored],
   };
 }
 
-/** Split a move list into coordinates and hexworld's colon tokens. */
-function* tokenise(text) {
+const CURSOR = Symbol("cursor");
+
+/** Split the two move lists into coordinates and hexworld's colon tokens. */
+function* tokenise(played, ahead) {
+  yield* tokens(played);
+  yield CURSOR;
+  yield* tokens(ahead);
+}
+
+function* tokens(text) {
+  // A relative coordinate does not end where the next one starts, so those
+  // have to be written one to a full stop; ordinary ones may run together.
   for (const chunk of text.split(".")) {
-    if (chunk === ",") {
-      yield ",";
-      continue;
-    }
     let rest = chunk;
     while (rest) {
-      if (rest[0] === ",") {
-        yield ",";
-        rest = rest.slice(1);
-        continue;
-      }
       const token = TOKEN.exec(rest);
       if (token) {
         yield token[1];
         rest = rest.slice(token[1].length);
-        continue;
+      } else {
+        yield rest;
+        rest = "";
       }
-      // Not a coordinate of the running-together kind, so the rest of this
-      // chunk has to be a single relative coordinate.
-      const upto = rest.indexOf(",");
-      yield upto === -1 ? rest : rest.slice(0, upto);
-      rest = upto === -1 ? "" : rest.slice(upto);
     }
   }
 }
@@ -125,42 +143,48 @@ function parseLegacy(text, maxSize) {
   const size = Number(sizeText);
   if (!Number.isInteger(size) || size < 2 || size > maxSize) return null;
 
-  const moves = [];
+  const placed = [];
   for (const token of movesText.split(",").filter(Boolean)) {
     const cell = parseCoord(token.slice(1), size);
     if (!cell) return null;
-    moves.push({ ...cell, color: token[0] === "b" ? "blue" : "red" });
+    placed.push({ ...cell, color: token[0] === "b" ? "blue" : "red" });
   }
-  const cursor = cursorText === undefined ? moves.length : Number(cursorText);
-  if (!Number.isInteger(cursor) || cursor < 0 || cursor > moves.length) {
+  let cursor = cursorText === undefined ? placed.length : Number(cursorText);
+  if (!Number.isInteger(cursor) || cursor < 0 || cursor > placed.length) {
     return null;
   }
+
+  // That spelling stored the colours, where this one infers them, so a pass
+  // goes in wherever the sequence does not alternate.
+  const moves = [];
+  let red = true;
+  placed.forEach((move, index) => {
+    if (colour(red) !== move.color) {
+      moves.push({ type: "pass", color: colour(red) });
+      if (index < cursor) cursor += 1;
+      red = !red;
+    }
+    moves.push({ type: "move", ...move });
+    red = !red;
+  });
   return { size, moves, cursor, numbers: true, ignored: [] };
 }
 
 /**
- * Write a fragment. Positions that alternate from red, which is every real
- * game, go out in hexworld's format so the link opens there too. A position
- * built with a colour forced does not survive that — the colours are not in
- * the format, only inferred — so those keep the older explicit spelling.
+ * Write a fragment, always in hexworld's format. The history alternates by
+ * construction — a stone of the colour not to move is preceded by a pass — so
+ * the colours come back out of the order alone.
  */
 export function formatHash({ size, moves, cursor, numbers }) {
-  if (!alternates(moves)) {
-    const listed = moves
-      .map((m) => `${m.color[0]}${standard(m.col, m.row)}`)
-      .join(",");
-    const rewound = cursor < moves.length ? `@${cursor}` : "";
-    return `#${size}${listed ? ":" + listed : ""}${rewound}`;
-  }
-
-  const played = moves.slice(0, cursor).map(coord).join("");
-  const ahead = moves.slice(cursor).map(coord).join("");
+  const written = moves.map(token);
+  const played = written.slice(0, cursor).join("");
+  const ahead = written.slice(cursor).join("");
   const body = ahead ? `,${played},${ahead}` : `,${played}`;
   return `#${size}${numbers ? "n" : ""}${body}`.replace(/,+$/, "");
 }
 
-const coord = (m) => standard(m.col, m.row);
-
-function alternates(moves) {
-  return moves.every((m, i) => m.color === (i % 2 ? "blue" : "red"));
+function token(move) {
+  if (move.type === "pass") return ":p";
+  if (move.type === "swap") return ":s";
+  return standard(move.col, move.row);
 }

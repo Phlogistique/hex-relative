@@ -15,6 +15,8 @@ const ui = {
   labels: el("labels"),
   numbers: el("numbers"),
   mode: el("mode"),
+  pass: el("pass"),
+  swap: el("swap"),
   first: el("first"),
   prev: el("prev"),
   next: el("next"),
@@ -45,8 +47,7 @@ function nextColour(event) {
   if (event && (event.type === "contextmenu" || event.shiftKey)) return null; // erase
   if (forced === "erase") return null;
   if (forced !== "alternate") return forced;
-  const last = board.moves[board.moves.length - 1];
-  return last && last.color === "red" ? "blue" : "red";
+  return board.toPlay();
 }
 
 function placeStone(cell, event) {
@@ -124,9 +125,11 @@ function renderMoves() {
       row(
         i + 1,
         `<td class="num">${i + 1}</td>
-         <td><span class="dot dot-${m.color}"></span></td>
-         <td class="coord-small">${relative(m.col, m.row, board.size)}</td>
-         <td class="standard-small">${standard(m.col, m.row)}</td>`,
+         <td><span class="dot dot-${m.color}"></span></td>` +
+          (m.type === "move"
+            ? `<td class="coord-small">${relative(m.col, m.row, board.size)}</td>
+               <td class="standard-small">${standard(m.col, m.row)}</td>`
+            : `<td colspan="2" class="turn">${m.type}</td>`),
       ),
     ),
   ].join("");
@@ -215,6 +218,13 @@ const step = (method) => () => {
   board[method]();
   refresh();
 };
+const act = (method) => () => {
+  board[method]();
+  note = "";
+  refresh();
+};
+ui.pass.addEventListener("click", act("pass"));
+ui.swap.addEventListener("click", act("swap"));
 ui.first.addEventListener("click", step("first"));
 ui.prev.addEventListener("click", step("prev"));
 ui.next.addEventListener("click", step("next"));
