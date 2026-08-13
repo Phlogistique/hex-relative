@@ -354,7 +354,6 @@ export class HexBoard {
         `stone stone-${move.color}${isLast ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
-        cell.label.setAttribute("y", digitBaseline(cell.label));
         cell.label.textContent = String(index + 1);
         cell.label.setAttribute("class", `stone-label on-${move.color}`);
       }
@@ -423,32 +422,6 @@ export class HexBoard {
     }
     return [];
   }
-}
-
-// Where a digit's baseline has to sit for its ink to be centred on the stone.
-// A font's ascent and descent leave room for accents and descenders that digits
-// never use, so centring on those puts the number too low; what matters is half
-// the cap height. system-ui resolves to a different face on every platform, so
-// this is measured from the font actually in use rather than assumed.
-const FALLBACK_INK_CENTRE = 0.367; // em, typical of a sans-serif digit
-let inkCentre = null;
-
-function digitBaseline(sample) {
-  if (inkCentre !== null) return inkCentre;
-  const style = getComputedStyle(sample);
-  let em = FALLBACK_INK_CENTRE;
-  try {
-    const ctx = document.createElement("canvas").getContext("2d");
-    ctx.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
-    const m = ctx.measureText("0");
-    const measured =
-      (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2000;
-    if (measured > 0.2 && measured < 0.6) em = measured;
-  } catch {
-    // measureText's ink metrics are missing; the fallback is close enough
-  }
-  inkCentre = em * (parseFloat(style.fontSize) || 1);
-  return inkCentre;
 }
 
 /**
