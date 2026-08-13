@@ -8,28 +8,17 @@
 import { distances, standard } from "./mason.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const HALF_WIDTH = Math.sqrt(3) / 2;
 
-/**
- * A hexagon's circumradius, and so the unit every length here is a multiple
- * of. The viewBox scales the drawing to whatever the page gives it, so the
- * number is arbitrary — but it must not be 1: at that scale the labels end up
- * well under a pixel tall, and browsers round font-relative CSS units such as
- * `cap` to whole pixels, which is what centring the move numbers depends on.
- * The stylesheet gets it as the --hex custom property.
- */
-export const HEX = 100;
-
-const HALF_WIDTH = (Math.sqrt(3) / 2) * HEX;
-
-// A hexagon, starting at the upper-right vertex and going anticlockwise on
-// screen. Edge k runs from vertex k to vertex k+1.
+// A hexagon of circumradius 1, starting at the upper-right vertex and going
+// anticlockwise on screen. Edge k runs from vertex k to vertex k+1.
 const VERTICES = [
-  [HALF_WIDTH, -HEX / 2],
-  [0, -HEX],
-  [-HALF_WIDTH, -HEX / 2],
-  [-HALF_WIDTH, HEX / 2],
-  [0, HEX],
-  [HALF_WIDTH, HEX / 2],
+  [HALF_WIDTH, -0.5],
+  [0, -1],
+  [-HALF_WIDTH, -0.5],
+  [-HALF_WIDTH, 0.5],
+  [0, 1],
+  [HALF_WIDTH, 0.5],
 ];
 
 // The neighbour that sits across edge k, as [dcol, drow].
@@ -43,34 +32,30 @@ const NEIGHBOURS = [
 ];
 
 // Labels stand off the board by the same CLEARANCE on all four sides. A
-// hexagon reaches HEX above and below its centre but only HALF_WIDTH to
-// either side, so the row labels have to sit nearer their centres than the
-// column labels do — measuring both from the centre instead is what made the
-// row numbers crowd the board.
-const CLEARANCE = 1.05 * HEX;
-const COL_LINE_1 = HEX + CLEARANCE;
-const COL_LINE_2 = COL_LINE_1 + 1.3 * HEX;
+// hexagon reaches 1 above and below its centre but only HALF_WIDTH to either
+// side, so the row labels have to sit nearer their centres than the column
+// labels do — measuring both from the centre instead is what made the row
+// numbers crowd the board.
+const CLEARANCE = 1.05;
+const COL_LINE_1 = 1 + CLEARANCE;
+const COL_LINE_2 = COL_LINE_1 + 1.3;
 const ROW_LINE_1 = HALF_WIDTH + CLEARANCE;
-const ROW_LINE_2 = ROW_LINE_1 + 1.8 * HEX; // digits need room side by side
+const ROW_LINE_2 = ROW_LINE_1 + 1.8; // digits need more room side by side
 
-const MARGIN_X = ROW_LINE_2 - HALF_WIDTH + 0.9 * HEX;
-const MARGIN_Y = COL_LINE_2 - HEX + 0.55 * HEX; // clears the outer column line
+const MARGIN_X = ROW_LINE_2 - HALF_WIDTH + 0.9;
+const MARGIN_Y = COL_LINE_2 - 1 + 0.55; // clears the outer column line
 
 // The board's coloured outline. It is drawn just outside the hexagons rather
 // than centred on them, so it never runs across a stone on the edge.
-const BORDER_WIDTH = 0.3 * HEX;
-const STONE_RADIUS = 0.78 * HEX;
+const BORDER_WIDTH = 0.3;
 
 // A column runs diagonally, gaining this much x per unit of y, so labels
 // placed on the continuation of a column follow the slant of the rhombus.
 const SLANT = Math.sqrt(3) / 3;
-const BASELINE = 0.28 * HEX; // drop from a label's centre to its baseline
+const BASELINE = 0.28; // drop from a label's centre to its baseline
 
 export function center(col, row) {
-  return {
-    x: Math.sqrt(3) * HEX * (col + row / 2),
-    y: 1.5 * HEX * row,
-  };
+  return { x: Math.sqrt(3) * (col + row / 2), y: 1.5 * row };
 }
 
 export class HexBoard {
@@ -176,9 +161,9 @@ export class HexBoard {
     const { size } = this;
     const last = size - 1;
     const minX = -HALF_WIDTH - MARGIN_X;
-    const maxX = Math.sqrt(3) * HEX * (last + last / 2) + HALF_WIDTH + MARGIN_X;
-    const minY = -HEX - MARGIN_Y;
-    const maxY = 1.5 * HEX * last + HEX + MARGIN_Y;
+    const maxX = Math.sqrt(3) * (last + last / 2) + HALF_WIDTH + MARGIN_X;
+    const minY = -1 - MARGIN_Y;
+    const maxY = 1.5 * last + 1 + MARGIN_Y;
 
     const svg = document.createElementNS(SVG_NS, "svg");
     svg.setAttribute(
@@ -186,7 +171,6 @@ export class HexBoard {
       `${minX} ${minY} ${maxX - minX} ${maxY - minY}`,
     );
     svg.setAttribute("class", "hex-board");
-    svg.style.setProperty("--hex", HEX);
     svg.setAttribute("role", "grid");
     svg.setAttribute("aria-label", `Hex board, ${size} by ${size}`);
 
@@ -223,7 +207,7 @@ export class HexBoard {
     g.appendChild(hex);
 
     const stone = document.createElementNS(SVG_NS, "circle");
-    stone.setAttribute("r", STONE_RADIUS);
+    stone.setAttribute("r", 0.78);
     stone.setAttribute("class", "stone hidden");
     g.appendChild(stone);
 
@@ -370,6 +354,7 @@ export class HexBoard {
         `stone stone-${move.color}${isLast ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
+        cell.label.setAttribute("y", digitBaseline(cell.label));
         cell.label.textContent = String(index + 1);
         cell.label.setAttribute("class", `stone-label on-${move.color}`);
       }
@@ -438,6 +423,32 @@ export class HexBoard {
     }
     return [];
   }
+}
+
+/**
+ * Where a move number's baseline goes so that its ink lands on the middle of
+ * the stone. A font's ascent and descent reserve room for accents and
+ * descenders that digits never use, so aligning to those — which is all
+ * dominant-baseline and the CSS cap unit can do — leaves the number sitting
+ * high. What is wanted is the middle of the digits' real ink, so that is what
+ * gets measured, in the font the label is actually drawn in: system-ui is a
+ * different face on every platform. All ten digits are measured together to
+ * take the tallest, and the answer is the same for every label, so it is
+ * worked out once.
+ */
+let inkCentre = null;
+
+function digitBaseline(label) {
+  if (inkCentre === null) {
+    const style = getComputedStyle(label);
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
+    const ink = ctx.measureText("0123456789");
+    const half =
+      (ink.actualBoundingBoxAscent - ink.actualBoundingBoxDescent) / 2000;
+    inkCentre = half * parseFloat(style.fontSize);
+  }
+  return inkCentre;
 }
 
 /**
