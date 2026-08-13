@@ -227,7 +227,6 @@ export class HexBoard {
   /** Thick coloured borders: every hex edge with no neighbour behind it. */
   buildEdges(layer) {
     const { size } = this;
-    this.outline = [];
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
         const { x, y } = center(col, row);
@@ -250,13 +249,6 @@ export class HexBoard {
           line.setAttribute("stroke-width", BORDER_WIDTH);
           line.setAttribute("class", `border border-${side}`);
           layer.appendChild(line);
-          this.outline.push({
-            x1: x + ax + mx * out,
-            y1: y + ay + my * out,
-            x2: x + bx + mx * out,
-            y2: y + by + my * out,
-            half: BORDER_WIDTH / 2,
-          });
         }
       }
     }
@@ -312,16 +304,19 @@ export class HexBoard {
   }
 
   /**
-   * Place the labels a measured GAP clear of the board's outline, the second
-   * line LINE_GAP clear of the first, then report what the drawing spans.
+   * Place the labels GAP clear of the board, the second line LINE_GAP clear of
+   * the first, then report what the drawing spans.
    *
-   * A fixed offset will not do it. Row labels are anchored by the edge facing
-   * the board so a wide "13'" and a bare "7" stand off alike, but the sides of
-   * the board are a staircase and the top and bottom a zigzag, so the nearest
-   * piece of outline is often not the one directly opposite — it is the step
-   * above, or a point the label happens to reach over. So the offset for each
-   * line is solved for: place, measure the worst clearance in the line, move
-   * out by the shortfall, repeat. It settles in a couple of rounds.
+   * The clearance is measured to the edge the label faces — the side of the
+   * board for a row, the points of the zigzag for a column — rather than to
+   * the nearest piece of outline. Those are not the same: a row label sits in
+   * a notch of the staircase, and the step above it, receding diagonally,
+   * always comes nearer than the edge alongside. Holding that at arm's length
+   * pushes the numbers out from the board for no reason the eye can see.
+   *
+   * Row labels are anchored by the edge facing the board, so that a wide "13'"
+   * and a bare "7" stand off alike. Column labels stay centred, their
+   * clearance being vertical.
    */
   layoutLabels(labels, board) {
     const bounds = { ...board };
@@ -335,62 +330,36 @@ export class HexBoard {
     const pick = (side, line) =>
       labels.filter((l) => l.side === side && l.line === line);
 
-    // Where a label lands for a given offset, and the box its ink occupies.
     const placers = {
-      left: (l, d) => {
-        const c = center(0, l.index);
-        return spot(c.x - d, c.y, l, "end");
-      },
-      right: (l, d) => {
-        const c = center(last, l.index);
-        return spot(c.x + d, c.y, l, "start");
-      },
-      top: (l, d) => {
-        const c = center(l.index, 0);
-        return spot(c.x - d * SLANT, c.y - d, l, "middle");
-      },
-      bottom: (l, d) => {
-        const c = center(l.index, last);
-        return spot(c.x + d * SLANT, c.y + d, l, "middle");
-      },
+      left: (l, d) => spot(center(0, l.index), -d, 0, l, "end"),
+      right: (l, d) => spot(center(last, l.index), d, 0, l, "start"),
+      // Along the continuation of the column, so the line of labels runs
+      // parallel to the sloping sides of the rhombus.
+      top: (l, d) => spot(center(l.index, 0), -d * SLANT, -d, l, "middle"),
+      bottom: (l, d) => spot(center(l.index, last), d * SLANT, d, l, "middle"),
     };
 
     for (const side of ["left", "right", "top", "bottom"]) {
       const inner = pick(side, 0);
       if (!inner.length) continue;
       const place = placers[side];
+      const sideways = side === "left" || side === "right";
 
-      let d = HALF_WIDTH + BORDER_WIDTH + GAP;
-      for (let round = 0; round < 5; round++) {
-        const worst = Math.min(
-          ...inner.map((l) => this.clearance(place(l, d).box)),
-        );
-        d += GAP - worst;
-      }
+      // To the edge of the text for a row, to the edge of the ink for a column.
+      const d = sideways
+        ? HALF_WIDTH + BORDER_WIDTH + GAP
+        : 1 + BORDER_WIDTH + GAP + inner[0].ink;
       for (const l of inner) apply(l, place(l, d), bounds);
 
       const outer = pick(side, 1);
       if (!outer.length) continue;
-      // Sideways for the rows, since they are anchored edge to edge; upwards
-      // for the columns, which are centred and stack.
-      const step =
-        side === "left" || side === "right"
-          ? Math.max(...inner.map((l) => l.width)) + LINE_GAP
-          : inner[0].ink + outer[0].ink + LINE_GAP;
+      const step = sideways
+        ? Math.max(...inner.map((l) => l.width)) + LINE_GAP
+        : inner[0].ink + outer[0].ink + LINE_GAP;
       for (const l of outer) apply(l, place(l, d + step), bounds);
     }
     return grow(bounds, PAD);
   }
-
-  /** How far a box is from the nearest piece of the board's outline. */
-  clearance(box) {
-    let least = Infinity;
-    for (const seg of this.outline) {
-      least = Math.min(least, boxToSegment(box, seg) - seg.half);
-    }
-    return least;
-  }
-
   /** Repaint stones, move numbers and highlights without rebuilding the SVG. */
   paint() {
     for (const { hex, stone, label } of this.cells.values()) {
@@ -480,14 +449,16 @@ export class HexBoard {
 }
 
 /** Where a label sits, and the box its ink occupies there. */
-function spot(x, centreY, l, anchor) {
+function spot(centre, dx, dy, l, anchor) {
+  const x = centre.x + dx;
+  const y = centre.y + dy;
   const from =
     anchor === "end" ? x - l.width : anchor === "start" ? x : x - l.width / 2;
   return {
     x,
-    y: centreY + l.ink,
+    y: y + l.ink,
     anchor,
-    box: [from, centreY - l.ink, from + l.width, centreY + l.ink],
+    box: [from, y - l.ink, from + l.width, y + l.ink],
   };
 }
 
@@ -501,39 +472,6 @@ function apply(l, at, bounds) {
   bounds.minY = Math.min(bounds.minY, at.box[1]);
   bounds.maxX = Math.max(bounds.maxX, at.box[2]);
   bounds.maxY = Math.max(bounds.maxY, at.box[3]);
-}
-
-/** Distance between an axis-aligned box and a line segment, 0 if they meet. */
-function boxToSegment([x0, y0, x1, y1], seg) {
-  const corners = [
-    [x0, y0],
-    [x1, y0],
-    [x1, y1],
-    [x0, y1],
-  ];
-  let least = Infinity;
-  for (const [px, py] of corners) {
-    least = Math.min(least, pointToSegment(px, py, seg));
-  }
-  for (const [px, py] of [
-    [seg.x1, seg.y1],
-    [seg.x2, seg.y2],
-  ]) {
-    const dx = Math.max(x0 - px, 0, px - x1);
-    const dy = Math.max(y0 - py, 0, py - y1);
-    least = Math.min(least, Math.hypot(dx, dy));
-  }
-  return least;
-}
-
-function pointToSegment(px, py, { x1, y1, x2, y2 }) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = dx * dx + dy * dy;
-  const t = len
-    ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len))
-    : 0;
-  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
 /** Half the height of the digits' ink, in the font this label is drawn in. */
