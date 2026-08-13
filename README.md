@@ -1,8 +1,7 @@
 # Hex board with Mason's relative coordinates
 
 An interactive [Hex](https://en.wikipedia.org/wiki/Hex_(board_game)) board that names cells with
-[Mason's relative coordinates](https://www.hexwiki.net/index.php/User:Mason#Relative_Coordinates),
-the board-size-independent notation from HexWiki.
+[Mason's relative coordinates](https://www.hexwiki.net/index.php/User:Mason#Relative_Coordinates).
 
 ## The notation
 
