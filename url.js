@@ -171,14 +171,28 @@ function parseLegacy(text, maxSize) {
 }
 
 /**
- * Write a fragment, always in hexworld's format. The history alternates by
- * construction — a stone of the colour not to move is preceded by a pass — so
- * the colours come back out of the order alone.
+ * Write a fragment, always in hexworld's format.
+ *
+ * The colours are not stored there, only implied by the order, so a move by
+ * the side that is not to play gets a pass in front of it. Placing usually
+ * keeps the history alternating on its own, but rubbing a stone out does not:
+ * take the first stone off d10 j9 d5 and what is left starts on blue.
  */
 export function formatHash({ size, moves, cursor, numbers }) {
-  const written = moves.map(token);
-  const played = written.slice(0, cursor).join("");
-  const ahead = written.slice(cursor).join("");
+  const written = [];
+  let mark = cursor; // where the cursor lands once the passes are in
+  let red = true;
+  moves.forEach((move, index) => {
+    if (colour(red) !== move.color) {
+      written.push(":p");
+      if (index < cursor) mark += 1;
+      red = !red;
+    }
+    written.push(token(move));
+    red = !red;
+  });
+  const played = written.slice(0, mark).join("");
+  const ahead = written.slice(mark).join("");
   const body = ahead ? `,${played},${ahead}` : `,${played}`;
   return `#${size}${numbers ? "n" : ""}${body}`.replace(/,+$/, "");
 }

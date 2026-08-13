@@ -147,6 +147,26 @@ test("writes hexworld's format, and reads its own writing back", () => {
   }
 });
 
+test("a history left out of step by an erasure keeps its colours", () => {
+  // what taking the first stone off #13,d10j9d5 leaves: blue, then red
+  const left = {
+    size: 13,
+    cursor: 2,
+    numbers: false,
+    moves: [
+      { type: "move", col: 9, row: 8, color: "blue" },
+      { type: "move", col: 3, row: 4, color: "red" },
+    ],
+  };
+  const hash = formatHash(left);
+  assert.equal(hash, "#13,:pj9d5");
+  assert.deepEqual(
+    read(hash).moves.map((m) => m.color),
+    ["red", "blue", "red"], // the inserted pass is red's
+  );
+  assert.deepEqual(cells(read(hash)).slice(1), ["bj9", "rd5"]);
+});
+
 test("every history round-trips, passes and swaps included", () => {
   for (const hash of [
     "#13,d10j9d5",

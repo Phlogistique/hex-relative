@@ -82,6 +82,7 @@ its own (`#9:ra1,rb1`) is still read, so links shared before are not broken.
 | `app.js` | UI wiring: toolbar, readout, stone list, history |
 | `mason.test.mjs` | checks against every worked example on the wiki page |
 | `url.test.mjs` | checks the fragment against hexworld's format |
+| `checks/` | browser checks: layout, clicking, history, phones — see `CLAUDE.md` |
 
 `mason.js` and `url.js` have no dependencies and no DOM references, so either can be reused
 on its own.
@@ -97,7 +98,8 @@ python3 -m http.server 8000
 Tests:
 
 ```sh
-node --test *.test.mjs
+node --test *.test.mjs                                # unit tests
+for c in checks/*.mjs; do node "$c" || break; done    # browser checks
 ```
 
 ## Deployment
