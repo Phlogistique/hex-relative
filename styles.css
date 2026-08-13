@@ -410,6 +410,12 @@ text {
   font-weight: 600;
 }
 
+.status-note {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
 .status-red {
   color: var(--red);
 }

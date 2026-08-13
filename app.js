@@ -1,14 +1,12 @@
 import { HexBoard } from "./board.js";
 import { parse, relative, standard, variants } from "./mason.js";
+import { formatHash, parseHash } from "./url.js";
 
 const DEFAULT_SIZE = 13;
 const MAX_SIZE = 26;
 
 // The diagram from the wiki page, so the naming can be checked at a glance.
-const WIKI_EXAMPLE = {
-  size: 13,
-  moves: "rd10,bj9,rd5,bj4,rc2,bb5,rb8",
-};
+const WIKI_EXAMPLE = "#13n,d10j9d5j4c2b5b8";
 
 const el = (id) => document.getElementById(id);
 const ui = {
@@ -40,6 +38,7 @@ const board = new HexBoard(ui.board, {
 });
 
 let lastTouched = null;
+let note = ""; // what an imported link carried that could not be shown
 
 function nextColour(event) {
   const forced = ui.mode.value;
@@ -53,6 +52,7 @@ function nextColour(event) {
 function placeStone(cell, event) {
   lastTouched = cell;
   board.mark(null);
+  note = "";
   // Touch devices have no hover, so "inspect" is the way to read a cell's name
   // without disturbing the position.
   if (ui.mode.value === "inspect") {
@@ -139,8 +139,8 @@ function renderMoves() {
 function renderStatus() {
   const path = board.winningPath();
   if (!path.length) {
-    ui.status.textContent = "";
-    ui.status.className = "status";
+    ui.status.textContent = note;
+    ui.status.className = note ? "status status-note" : "status";
     return;
   }
   const colour = board.stoneAt(path[0].col, path[0].row);
@@ -159,57 +159,58 @@ function setSize(size) {
   ui.size.value = clean;
   board.setSize(clean);
   lastTouched = null;
+  note = "";
   refresh();
 }
 
 // --- URL state ------------------------------------------------------------
-// #13:rd10,bj9  — board size, then the stones in order, each with its colour.
 
 function writeHash() {
-  const encoded = board.moves
-    .map((m) => `${m.color[0]}${standard(m.col, m.row)}`)
-    .join(",");
-  const rewound = board.cursor < board.moves.length ? `@${board.cursor}` : "";
-  const hash = `#${board.size}${encoded ? ":" + encoded : ""}${rewound}`;
-  history.replaceState(null, "", hash);
+  history.replaceState(
+    null,
+    "",
+    formatHash({
+      size: board.size,
+      moves: board.moves,
+      cursor: board.cursor,
+      numbers: ui.numbers.checked,
+    }),
+  );
 }
 
 function readHash(hash) {
-  const text = decodeURIComponent(hash.replace(/^#/, ""));
-  if (!text) return null;
-  const [position, cursorText] = text.split("@");
-  const [sizeText, movesText = ""] = position.split(":");
-  const size = Number(sizeText);
-  if (!Number.isInteger(size) || size < 2 || size > MAX_SIZE) return null;
-  const moves = [];
-  for (const token of movesText.split(",").filter(Boolean)) {
-    const color = token[0] === "b" ? "blue" : "red";
-    const cell = parse(token.slice(1), size);
-    if (!cell) return null;
-    moves.push({ ...cell, color });
-  }
-  const cursor = cursorText === undefined ? moves.length : Number(cursorText);
-  if (!Number.isInteger(cursor) || cursor < 0 || cursor > moves.length) {
-    return null;
-  }
-  return { size, moves, cursor };
+  return parseHash(hash, MAX_SIZE);
 }
 
 function load(state) {
   ui.size.value = state.size;
+  ui.numbers.checked = state.numbers;
   board.setSize(state.size);
+  board.setShowNumbers(state.numbers);
   board.setMoves(state.moves, state.cursor);
   lastTouched = null;
+  // Say so when a link carried something this board cannot show, rather than
+  // opening a position that quietly differs from the one that was shared.
+  note = state.ignored?.length
+    ? `Imported without hexworld's ${list(state.ignored)}.`
+    : "";
   refresh();
+}
+
+function list(items) {
+  return items.length < 2
+    ? items[0]
+    : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
 
 // --- wiring ---------------------------------------------------------------
 
 ui.size.addEventListener("change", () => setSize(Number(ui.size.value)));
 ui.labels.addEventListener("change", () => board.setLabels(ui.labels.value));
-ui.numbers.addEventListener("change", () =>
-  board.setShowNumbers(ui.numbers.checked),
-);
+ui.numbers.addEventListener("change", () => {
+  board.setShowNumbers(ui.numbers.checked);
+  writeHash();
+});
 const step = (method) => () => {
   board[method]();
   refresh();
@@ -228,11 +229,10 @@ ui.moves.addEventListener("click", (event) => {
 ui.clear.addEventListener("click", () => {
   board.clear();
   lastTouched = null;
+  note = "";
   refresh();
 });
-ui.example.addEventListener("click", () =>
-  load(readHash(`#${WIKI_EXAMPLE.size}:${WIKI_EXAMPLE.moves}`)),
-);
+ui.example.addEventListener("click", () => load(readHash(WIKI_EXAMPLE)));
 
 ui.share.addEventListener("click", async () => {
   writeHash();
@@ -275,10 +275,24 @@ document.addEventListener("keydown", (event) => {
   refresh();
 });
 
-window.addEventListener("hashchange", () => {
-  const state = readHash(location.hash);
-  if (state) load(state);
-});
+window.addEventListener("hashchange", () => open(location.hash));
 
-const initial = readHash(location.hash);
-load(initial ?? { size: DEFAULT_SIZE, moves: [] });
+/**
+ * Show whatever a fragment describes. An unreadable one leaves the board as
+ * it is and says so, rather than quietly showing something else.
+ */
+function open(hash) {
+  const state = readHash(hash);
+  if (state) {
+    load(state);
+    return;
+  }
+  note = "That link could not be read.";
+  refresh();
+}
+
+if (location.hash) {
+  open(location.hash);
+} else {
+  load({ size: DEFAULT_SIZE, moves: [], cursor: 0, numbers: true });
+}
