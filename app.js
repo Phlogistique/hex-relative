@@ -216,11 +216,12 @@ function setStyle(mode) {
  * Which way round to draw the board, and how tall it may be.
  *
  * The two drawings are the same board in the same box, lying down and stood on
- * its end, so their shapes are each other's transposed: three to two against
- * two to three. Which of them to use is therefore not a question about the
- * device but about the space left for the board — whichever way that space
- * leans, one of them fills it and the other wastes most of it — so it is
- * measured rather than asked.
+ * its end, so which of them to use is not a question about the device but
+ * about the space left for the board: whichever way that space leans, one of
+ * them fills it and the other wastes most of it. Both are measured — the box
+ * here, the drawings in `board.shape()` — because their shapes are not quite
+ * each other's transposed and the answer near the turn depends on the
+ * difference, which on a phone held upright is where the answer usually is.
  *
  * Nothing changes unless the board actually stands up: the cap is the
  * stylesheet's own until then.
@@ -231,11 +232,8 @@ function fitBoard() {
   ui.board.style.removeProperty("--board-room");
   const width = svg.getBoundingClientRect().width;
   const room = roomForBoard(svg);
-  if (room > width) {
+  if (board.fitInto(width, room) === "tall") {
     ui.board.style.setProperty("--board-room", `${room}px`);
-    board.setOrientation("tall");
-  } else {
-    board.setOrientation("wide");
   }
 }
 

@@ -52,7 +52,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `phone.mjs` | three screen sizes: no sideways overflow, panel above the fold |
-| `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, and a URL bar sliding away does not turn it |
+| `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z |
 | `screenshots.mjs` | writes PNGs next to itself, for what only the eye can judge |
 
@@ -151,16 +151,41 @@ check was worthless for it: `setViewportSize` moves the layout viewport too, so
 `checks/turned.mjs` redefines `window.innerHeight` and fires a resize, which is
 what the bar actually does, and refuses to pass if `svh` moved as well.
 
-**How much room the board has is measured, not assumed.** `app.js` compares the
-space left for the board with its own width and turns it if that pays, then
-caps its height at the room left above the Cell panel, which is where a tap's
-answer appears. Everything between the foot of the board and the foot of that
+**How much room the board has is measured, not assumed.** `app.js` measures the
+box the board is left — its own width, and the height above the Cell panel,
+which is where a tap's answer appears — and hands it to `board.fitInto()`,
+which lies the rhombus down or stands it up, whichever draws the bigger cell in
+a box that size. Everything between the foot of the board and the foot of that
 panel is laid out already and does not depend on how tall the board is, so one
 measurement settles it; the stylesheet is asked whether the page is one column
 or two rather than the breakpoint being written down in two places. On a small
 enough phone the answer is that turning it would gain nothing — the chrome
 above the board eats half the screen — and it is left lying down. That is why
 `phone.mjs` prints which way each screen went instead of insisting.
+
+Which way round draws the bigger board is not the same question as which way
+round the box leans, and taking the second for the first cost this page a band
+of screens. The rule was that a box taller than it is wide wants the upright
+drawing, which would be right if the two drawings were each other's transposed.
+They are not, and the labels are what spoils it: they come round with neither
+the board nor the reader's head, so a printed number stands the same way up in
+both and takes its width out of the upright drawing's width, where lying down
+the same width came out of a side that had room to spare. The upright drawing
+is a twenty-fifth stouter than the lying one turned on its side, so there is a
+band of boxes — slightly wider than they are tall — where standing the board up
+still draws it bigger, and a phone held upright is often in it: a 360 by 658
+screen leaves a box of 345 by 338, which used to be drawn lying down.
+
+`board.shape()` is what settles it, and it is measured for the same reason the
+labels are: where they land is read off the text as rendered, so the way round
+that is not on screen has to be drawn to be measured. It is drawn once out of
+sight and the answer kept — it depends on the size, the style and which labels
+are printed, and on nothing a resize touches, so a board that has been fitted
+once fits again for nothing. `checks/turned.mjs` works the band out from the
+two drawings, builds a screen that lands in the middle of it, and insists the
+board stands up there and comes out bigger for it; it also checks the drawing
+made out of sight against a real one, since a hidden drawing that measured
+nothing would look like a very stout board and turn every screen.
 
 What that chrome costs is worth knowing, because it is not paid where it is
 spent. The turned board is narrower than the screen and taller than the room
