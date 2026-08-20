@@ -41,13 +41,15 @@ const PAD = 0.15; // a little air beyond the outermost labels
 
 const BORDER_WIDTH = 0.3;
 
-// --- goban mode ---
+// --- the go-style boards ---
 // The same board drawn as the tiling's dual: the cell centres become the
-// intersections of a triangular grid and a stone sits on each. Everything
-// below is measured out from the outermost intersections, in the same units
-// as the rest of the drawing (a hexagon's circumradius is 1, and neighbouring
+// intersections of a triangular grid and a stone sits on each. Two of them,
+// differing only in what the grid is drawn on: `goban` is a wooden board,
+// `diagram` is the same lines printed on the page. Everything below is
+// measured out from the outermost intersections, in the same units as the rest
+// of the drawing (a hexagon's circumradius is 1, and neighbouring
 // intersections stand sqrt(3) apart).
-const STONE = { hex: 0.78, goban: 0.8 };
+const STONE = { hex: 0.78, goban: 0.8, diagram: 0.8 };
 const GRID_WIDTH = 0.05;
 const STAR = 0.16; // the dots at the 4-4 points
 // The coloured band has to clear the rim of a stone played on the edge, so it
@@ -69,7 +71,7 @@ export class HexBoard {
     this.container = container;
     this.size = options.size ?? 13;
     this.labels = options.labels ?? "relative"; // "relative" | "standard" | "none"
-    this.style = options.style ?? "hex"; // "hex" | "goban"
+    this.style = options.style ?? "hex"; // "hex" | "goban" | "diagram"
     this.showNumbers = options.showNumbers ?? true;
     this.onHover = options.onHover ?? (() => {});
     this.onSelect = options.onSelect ?? (() => {});
@@ -230,7 +232,7 @@ export class HexBoard {
     this.render();
   }
 
-  /** How the board is drawn: hexagons, or the dual grid stones sit on. */
+  /** How the board is drawn: hexagons, or a grid with stones on it. */
   setStyle(mode) {
     this.style = mode;
     this.render();
@@ -250,10 +252,10 @@ export class HexBoard {
   render() {
     const { size } = this;
     const last = size - 1;
-    const goban = this.style === "goban";
+    const dual = this.style !== "hex";
     // The board itself, outside edge of the border included.
-    const board = goban
-      ? boxOf(outline(size, WOOD))
+    const board = dual
+      ? boxOf(outline(size, this.edge()))
       : {
           minX: -HALF_WIDTH - BORDER_WIDTH,
           maxX: Math.sqrt(3) * (last + last / 2) + HALF_WIDTH + BORDER_WIDTH,
@@ -263,18 +265,23 @@ export class HexBoard {
 
     const svg = document.createElementNS(SVG_NS, "svg");
     setViewBox(svg, board);
-    svg.setAttribute("class", `hex-board style-${this.style}`);
+    // `dual` is what the two go-style boards share: the grid, the stones on
+    // it, and the hexagons left unpainted underneath.
+    svg.setAttribute(
+      "class",
+      `hex-board style-${this.style}${dual ? " dual" : ""}`,
+    );
     svg.setAttribute("role", "grid");
     svg.setAttribute("aria-label", `Hex board, ${size} by ${size}`);
 
-    if (goban) svg.appendChild(gobanDefs());
+    if (dual) svg.appendChild(stoneShading());
     const groundLayer = group(svg, "ground");
     const cellLayer = group(svg, "cells");
     const edgeLayer = group(svg, "edges");
     const labelLayer = group(svg, "labels");
 
-    if (goban) {
-      this.buildWood(groundLayer);
+    if (dual) {
+      if (this.style === "goban") this.buildWood(groundLayer);
       this.buildGrid(groundLayer);
       this.buildStars(groundLayer);
     }
@@ -285,7 +292,7 @@ export class HexBoard {
         cellLayer.appendChild(this.buildCell(col, row));
       }
     }
-    if (goban) this.buildBands(edgeLayer);
+    if (dual) this.buildBands(edgeLayer);
     else this.buildEdges(edgeLayer);
     const labels = this.buildLabels(labelLayer);
 
@@ -438,7 +445,8 @@ export class HexBoard {
   }
 
   /**
-   * The coloured edges, as four bands inlaid in the wood. They are mitred
+   * The coloured edges, as four bands beyond the outermost intersections, far
+   * enough out to clear the rim of a stone played on one. They are mitred
    * where they meet: each end is cut along the corner's bisector, so red's
    * band and blue's divide the corner between them and neither overruns.
    */
@@ -521,9 +529,18 @@ export class HexBoard {
    * board's flank leans, so the same clearance costs a longer step.
    */
   reach() {
-    return this.style === "goban"
-      ? { flank: WOOD, end: WOOD, slant: 1 / HALF_WIDTH }
-      : { flank: HALF_WIDTH + BORDER_WIDTH, end: 1 + BORDER_WIDTH, slant: 1 };
+    return this.style === "hex"
+      ? { flank: HALF_WIDTH + BORDER_WIDTH, end: 1 + BORDER_WIDTH, slant: 1 }
+      : { flank: this.edge(), end: this.edge(), slant: 1 / HALF_WIDTH };
+  }
+
+  /**
+   * How far past the outermost intersections the go-style drawing reaches,
+   * square on to the edge: the wooden rim of a goban, and the far side of the
+   * coloured band when there is no wood under it.
+   */
+  edge() {
+    return this.style === "goban" ? WOOD : BAND + BORDER_WIDTH / 2;
   }
 
   /**
@@ -809,11 +826,12 @@ function boxOf(points) {
 }
 
 /**
- * The shading a goban's pieces are drawn with: two stones lit from the upper
- * left, and the timber under them. The stops carry classes rather than colours
- * so the stylesheet keeps them, and the wood can follow the colour scheme.
+ * The shading the pieces are drawn with: two stones lit from the upper left,
+ * and the timber that may go under them. The stops carry classes rather than
+ * colours, so the stylesheet keeps them and can flatten the stones out for the
+ * printed-diagram board or follow the colour scheme for the wood.
  */
-function gobanDefs() {
+function stoneShading() {
   const defs = document.createElementNS(SVG_NS, "defs");
   const stops = (node, list) => {
     for (const [offset, className] of list) {

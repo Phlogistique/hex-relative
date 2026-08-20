@@ -24,6 +24,9 @@ const SHOTS = [
   ["goban-9-edges.png", "#9n,a1i1a9i9e1e9a5i5c1g9", { style: "goban" }],
   ["goban-5.png", "#5n,c3b4d2", { style: "goban" }],
   ["goban-53.png", "#53n,ba53aa27a1", { style: "goban" }],
+  ["diagram-13.png", "#13n,d10j9d5j4c2b5b8", { style: "diagram" }],
+  ["diagram-9-edges.png", "#9n,a1i1a9i9e1e9a5i5c1g9", { style: "diagram" }],
+  ["diagram-53.png", "#53n,ba53aa27a1", { style: "diagram" }],
 ];
 
 await check("Screenshots", async ({ open }) => {
@@ -40,6 +43,18 @@ await check("Screenshots", async ({ open }) => {
   const full = await open("#13n,d10j9d5j4c2b5b8");
   await full.screenshot({ path: here("page.png") });
   console.log("  page.png");
+
+  // The whole page in each go-style board, with a game already won: the stone
+  // list and the win message change vocabulary along with the drawing, and
+  // there is nowhere else to see that.
+  for (const style of ["goban", "diagram"]) {
+    const won = await open("#5n,c1:pc2:pc3:pc4:pc5");
+    await won.selectOption("#style", style);
+    await won.waitForTimeout(150);
+    await won.screenshot({ path: here(`page-${style}.png`) });
+    console.log(`  page-${style}.png`);
+    await won.close();
+  }
 
   const phone = await open("#13n,d10j9d5j4c2b5b8", {
     viewport: { width: 390, height: 844 },

@@ -1,20 +1,27 @@
 /**
- * The goban drawing: the grid, the stones on it, and the room around them.
+ * The two go-style boards: the grid, the stones on it, the room around them,
+ * and the colours the page is left with.
  *
- * Everything here is a claim the eye cannot settle. A triangular tiling drawn
- * as three families of straight lines looks plausible long before it is right,
- * so the first measure counts how many of those lines actually run through
- * each cell — three everywhere but the two acute corners, where the third
- * family has shrunk to a point. The rest is clearance: a stone played on the
- * edge must not touch the coloured band beyond it, and a row label must stand
- * the same GAP off the wooden edge as it does off the hexagons, which is a
- * longer step sideways because that edge is slanted and theirs is not.
+ * Most of this is a claim the eye cannot settle. A triangular tiling drawn as
+ * three families of straight lines looks plausible long before it is right, so
+ * the first measure counts how many of those lines actually run through each
+ * cell — three everywhere but the two acute corners, where the third family
+ * has shrunk to a point. Then clearance: a stone played on the edge must not
+ * touch the coloured band beyond it, and a row label must stand the same GAP
+ * off the board's edge as it does off the hexagons, which is a longer step
+ * sideways because that edge is slanted and theirs is not.
+ *
+ * The last of them is not about position at all. These boards are meant to
+ * have no red and no blue anywhere on them, which is easy to say and easy to
+ * leave half-done, so it is checked by reading the colours back off the page
+ * and looking for the two the stylesheet says are gone.
  */
 import { check } from "./lib/browser.mjs";
 import { relative } from "../mason.js";
 
 const GAP = 0.55; // GAP in board.js
 const HALF_WIDTH = Math.sqrt(3) / 2;
+const STYLES = ["goban", "diagram"];
 
 /** Read the drawing back out of the DOM, in the SVG's own units. */
 function measure() {
@@ -99,15 +106,22 @@ function measure() {
     }
   }
 
-  // Where the wood is actually painted on the left flank. The polygon is drawn
-  // half a bevel short of that edge and stroked back out to it, and a step
-  // sideways covers less ground than a step square on, the flank being slanted.
+  // The left flank of whatever the board is drawn out to. On the wooden one
+  // that is the rim: the polygon is drawn half a bevel short of it and stroked
+  // back out, so the paint reaches further than the points say. With no wood
+  // under it, it is the far side of blue's band.
   const wood = document.querySelector(".wood");
-  const rim = corners(wood);
-  const bevel = +wood.getAttribute("stroke-width") / 2 / HALF_WIDTH;
-  // Sides run top, right, bottom, left; the left one joins corners 3 and 0.
-  const [a, b] = [rim[3], rim[0]];
-  const woodEdge = (y) => a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y) - bevel;
+  let a, b, painted;
+  if (wood) {
+    const rim = corners(wood);
+    [a, b] = [rim[3], rim[0]]; // sides run top, right, bottom, left
+    painted = +wood.getAttribute("stroke-width") / 2 / HALF_WIDTH;
+  } else {
+    const band = corners(document.querySelector(".band-blue"));
+    [a, b] = [band[2], band[3]]; // the two corners on the far side of it
+    painted = 0;
+  }
+  const flank = (y) => a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y) - painted;
 
   const rows = [...document.querySelectorAll('.labels text[data-side="left"]')]
     .filter((node) => node.dataset.line === "0")
@@ -116,7 +130,7 @@ function measure() {
       // text-anchor is "end" on this side, so x is the edge facing the board.
       // The flank leans, so the sideways gap is longer than the real one.
       gap:
-        (woodEdge(centre(0, index).y) - Number(node.getAttribute("x"))) *
+        (flank(centre(0, index).y) - Number(node.getAttribute("x"))) *
         HALF_WIDTH,
     }));
 
@@ -131,101 +145,183 @@ function measure() {
   return { size, through, clearance, rows, stars, lines: lines.length };
 }
 
-async function goban(open, hash) {
-  const page = await open(hash);
-  await page.selectOption("#style", "goban");
-  await page.waitForTimeout(150);
-  return page.evaluate(measure);
-}
-
-await check("Goban grid", async ({ open }) => {
-  const { size, through, stars, lines } = await goban(
-    open,
-    "#13n,d10j9d5j4c2b5b8",
+/**
+ * Everything the board and the panels describing it are painted with, weighed
+ * against what the stylesheet's red and blue come out as. Custom properties
+ * have to be resolved through an element: they are names, not colours, until
+ * something is painted with them.
+ */
+function palette() {
+  const probe = document.createElement("span");
+  document.body.appendChild(probe);
+  const resolve = (name) => {
+    probe.style.color = `var(${name})`;
+    return getComputedStyle(probe).color;
+  };
+  const gone = new Map(
+    ["--red", "--red-dark", "--blue", "--blue-dark"].map((name) => [
+      resolve(name),
+      name,
+    ]),
   );
+  probe.remove();
 
-  const acute = new Set(["0,0", `${size - 1},${size - 1}`]);
-  const wanted = (c) => (acute.has(`${c.col},${c.row}`) ? 2 : 3);
-  const wrong = through.filter((c) => c.count !== wanted(c));
-  console.log(
-    `  ${lines} lines through ${through.length} cells: three at each, but the ` +
-      `two acute corners, where the third family is a single point`,
-  );
-  if (wrong.length) {
-    throw new Error(
-      "lines through a cell: " +
-        wrong
-          .slice(0, 6)
-          .map((c) => `${c.col},${c.row} has ${c.count} not ${wanted(c)}`)
-          .join("; "),
-    );
-  }
-
-  // Go's star points, put on the 4-4 points, which carry those names whatever
-  // the board size, and on the centre.
-  const named = stars.map((s) => relative(s.col, s.row, size)).sort();
-  const expected = ["44", "44'", "4'4", "4'4'", "77"].sort();
-  console.log(`  star points ${named.join(" ")}`);
-  if (named.join(" ") !== expected.join(" ")) {
-    throw new Error(
-      `star points ${named.join(" ")}, wanted ${expected.join(" ")}`,
-    );
-  }
-});
-
-await check("Goban clearances", async ({ open }) => {
-  // A stone in every corner and along every edge, which is the only place the
-  // coloured band has a chance to foul one.
-  const { clearance, rows } = await goban(open, "#9n,a1i1a9i9e1e9a5i5c1g9");
-
-  console.log(
-    `  nearest a stone comes to a band: ${clearance.gap.toFixed(3)}, ` +
-      `at ${clearance.x.toFixed(2)},${clearance.y.toFixed(2)} (the ${clearance.edge} one)`,
-  );
-  if (clearance.gap < 0.15) {
-    throw new Error(
-      `a stone comes within ${clearance.gap} of the ${clearance.edge} band`,
-    );
-  }
-
-  const gaps = rows.map((r) => r.gap);
-  console.log(
-    `  row labels face the wooden edge at ${Math.min(...gaps).toFixed(3)}..` +
-      `${Math.max(...gaps).toFixed(3)}, wanting ${GAP}`,
-  );
-  for (const r of rows) {
-    if (Math.abs(r.gap - GAP) > 0.02) {
-      throw new Error(
-        `label ${r.text} stands ${r.gap} off the wood, wanted ${GAP}`,
-      );
+  const used = [];
+  for (const node of document.querySelectorAll(
+    ".hex-board *, #moves *, #status, #readout *",
+  )) {
+    const style = getComputedStyle(node);
+    for (const property of [
+      "color",
+      "fill",
+      "stroke",
+      "backgroundColor",
+      "boxShadow",
+    ]) {
+      for (const [colour, name] of gone) {
+        if (!style[property].includes(colour)) continue;
+        used.push({
+          name,
+          property,
+          node: `${node.tagName.toLowerCase()}.${node.getAttribute("class") ?? ""}`,
+        });
+      }
     }
   }
+  return { used };
+}
+
+async function board(open, hash, style) {
+  const page = await open(hash);
+  await page.selectOption("#style", style);
+  await page.waitForTimeout(150);
+  return page;
+}
+
+await check("The grid both go-style boards are drawn on", async ({ open }) => {
+  for (const style of STYLES) {
+    const page = await board(open, "#13n,d10j9d5j4c2b5b8", style);
+    const { size, through, stars, lines } = await page.evaluate(measure);
+
+    const acute = new Set(["0,0", `${size - 1},${size - 1}`]);
+    const wanted = (c) => (acute.has(`${c.col},${c.row}`) ? 2 : 3);
+    const wrong = through.filter((c) => c.count !== wanted(c));
+    // Go's star points, put on the 4-4 points, which carry those names
+    // whatever the board size, and on the centre.
+    const named = stars.map((s) => relative(s.col, s.row, size)).sort();
+    console.log(
+      `  ${style.padEnd(8)} ${lines} lines through ${through.length} cells, ` +
+        `three at each but the two acute corners   stars ${named.join(" ")}`,
+    );
+
+    if (wrong.length) {
+      throw new Error(
+        `${style}: lines through a cell: ` +
+          wrong
+            .slice(0, 6)
+            .map((c) => `${c.col},${c.row} has ${c.count} not ${wanted(c)}`)
+            .join("; "),
+      );
+    }
+    const expected = ["44", "44'", "4'4", "4'4'", "77"].sort();
+    if (named.join(" ") !== expected.join(" ")) {
+      throw new Error(
+        `${style}: star points ${named.join(" ")}, wanted ${expected.join(" ")}`,
+      );
+    }
+    await page.close();
+  }
+});
+
+await check("What the go-style boards leave clear", async ({ open }) => {
+  for (const style of STYLES) {
+    // A stone in every corner and along every edge, which is the only place
+    // the coloured band has a chance to foul one.
+    const page = await board(open, "#9n,a1i1a9i9e1e9a5i5c1g9", style);
+    const { clearance, rows } = await page.evaluate(measure);
+    const gaps = rows.map((r) => r.gap);
+
+    console.log(
+      `  ${style.padEnd(8)} stones clear the bands by ` +
+        `${clearance.gap.toFixed(3)} (the ${clearance.edge} one)   ` +
+        `row labels face the edge at ${Math.min(...gaps).toFixed(3)}..` +
+        `${Math.max(...gaps).toFixed(3)}`,
+    );
+    if (clearance.gap < 0.15) {
+      throw new Error(
+        `${style}: a stone comes within ${clearance.gap} of the ${clearance.edge} band`,
+      );
+    }
+    for (const r of rows) {
+      if (Math.abs(r.gap - GAP) > 0.02) {
+        throw new Error(
+          `${style}: label ${r.text} stands ${r.gap} off the board, wanted ${GAP}`,
+        );
+      }
+    }
+    await page.close();
+  }
   console.log(
-    `  which is a sideways step of ${(GAP / HALF_WIDTH).toFixed(3)}, the flank leaning`,
+    `  wanting ${GAP}, which is a sideways step of ` +
+      `${(GAP / HALF_WIDTH).toFixed(3)}, the flank leaning`,
   );
 });
 
-await check("Goban placing", async ({ open }) => {
-  // Nothing is painted under a stone in this mode: the hexagons are still
+await check("No red and no blue on a go-style board", async ({ open }) => {
+  // The hexagons first, to prove the reading finds those colours when they are
+  // there. Without it the check would pass just as well on a blank page.
+  const hexes = await open("#9n,a1i1e5,c3");
+  const { used: before } = await hexes.evaluate(palette);
+  console.log(`  hexes    ${before.length} things painted red or blue`);
+  if (!before.length) {
+    throw new Error("found none beside the hexagons, so the reading is blind");
+  }
+  await hexes.close();
+
+  for (const style of STYLES) {
+    const page = await board(open, "#9n,a1i1e5,c3", style);
+    const { used } = await page.evaluate(palette);
+    console.log(
+      `  ${style.padEnd(8)} ${used.length} things painted red or blue` +
+        (used.length
+          ? ": " +
+            used.map((u) => `${u.node} ${u.property} ${u.name}`).join(", ")
+          : ""),
+    );
+    if (used.length) {
+      throw new Error(
+        `${style}: ${used[0].name} still on ${used[0].node} (${used[0].property})`,
+      );
+    }
+    await page.close();
+  }
+});
+
+await check("Placing on a go-style board", async ({ open }) => {
+  // Nothing is painted under a stone in these modes: the hexagons are still
   // there as the click target, but transparent. A fill of `none` would stop
   // taking clicks, and the whole board would go dead without looking any
   // different, so the one thing worth proving is that a click still lands.
-  const page = await open("#9");
-  await page.selectOption("#style", "goban");
-  await page.waitForTimeout(150);
+  for (const style of STYLES) {
+    const page = await board(open, "#9", style);
+    const at = await page.evaluate(() => {
+      const cells = [...document.querySelectorAll(".cell")];
+      const box = cells[4 * 9 + 4].getBoundingClientRect(); // e5, the centre
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    });
+    await page.mouse.click(at.x, at.y);
+    await page.waitForTimeout(60);
 
-  const box = await page.evaluate(() => {
-    const cells = [...document.querySelectorAll(".cell")];
-    const at = cells[4 * 9 + 4].getBoundingClientRect(); // e5, the centre
-    return { x: at.x + at.width / 2, y: at.y + at.height / 2 };
-  });
-  await page.mouse.click(box.x, box.y);
-  await page.waitForTimeout(60);
-
-  const played = await page.textContent(".movelist .coord-small");
-  const hash = new URL(page.url()).hash;
-  console.log(`  a click on the middle of the board plays ${played} (${hash})`);
-  if (played !== "55" || !hash.includes("e5")) {
-    throw new Error(`clicking the centre of a 9x9 gave ${played}, ${hash}`);
+    const played = await page.textContent(".movelist .coord-small");
+    const hash = new URL(page.url()).hash;
+    console.log(
+      `  ${style.padEnd(8)} a click on the middle plays ${played} (${hash})`,
+    );
+    if (played !== "55" || !hash.includes("e5")) {
+      throw new Error(
+        `${style}: clicking the centre of a 9x9 gave ${played}, ${hash}`,
+      );
+    }
+    await page.close();
   }
 });

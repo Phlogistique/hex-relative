@@ -44,7 +44,7 @@ worth reading as much as running.
 | check | what it holds down |
 |---|---|
 | `labels.mjs` | every coordinate label stands exactly `GAP` off the edge it faces |
-| `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click |
+| `goban.mjs` | the dual drawings: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
@@ -99,19 +99,38 @@ measuring in the browser rather than nudging a number:
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
 
-**Goban mode is a second drawing of the same board, not a second board.**
-`style` picks between them in `render()`; everything else — the cells, the
-history, the URL, the hit testing — is shared and untouched. The hexagons are
-still there in goban mode, transparent, because they are the click target and
-the Voronoi cell of the intersection, so pointing at one still names exactly
-one cell. `fill: transparent` rather than `fill: none`: `none` stops taking
-clicks, and the board would go dead without looking any different, which is
-what `checks/goban.mjs` ends by proving.
+**The go-style boards are other drawings of the same board, not other
+boards.** `style` picks between the three in `render()`; everything else — the
+cells, the history, the URL, the hit testing — is shared and untouched. Two of
+them are go-style and share the `dual` class: `goban` on wood, `diagram`
+printed on the page. The hexagons are still there in both, transparent, because
+they are the click target and the Voronoi cell of the intersection, so pointing
+at one still names exactly one cell. `fill: transparent` rather than
+`fill: none`: `none` stops taking clicks, and the board would go dead without
+looking any different, which is what `checks/goban.mjs` ends by proving.
 
-The colours follow the stones rather than the notation: red plays black and
-blue white, edges included, so which pair of sides a colour is joining can be
-read off the board. The coordinate labels stay red and blue, since that is what
-the notation calls those edges, and they are the bridge between the two.
+**Nothing on a go-style board is red or blue, and that is a harder rule than
+it sounds.** On the board itself it is easy — red plays black, blue plays
+white, edges included, so which pair of sides a colour is joining can be read
+off the stones. Off the board it is not, because black and white are exactly
+the two colours a page cannot lend: one of them is always the paper, and which
+one depends on the colour scheme. Nothing outside the board is drawn in either.
+
+The device that replaces them is filled against hollow, which is how a Go book
+does it and is the one distinction that survives the page turning over: the
+coordinates counting from red's edges are solid, blue's are outlined in the
+page's own ink, and the stone list's dots are a disc and a ring. The `diagram`
+board's edge bands are outlined for the same reason — a black band vanishes
+into a dark page as surely as a white one vanishes into a light one — and its
+stones carry a mid-grey rim, that being the one tone that tells against black,
+white and both backgrounds at once. Hollow numerals need bold stems: at
+`font-weight: 400` the outlines close up into a smudge on a large board.
+
+The rule is worth a check because it is easy to leave half-done. `goban.mjs`
+resolves `--red` and `--blue` through a probe element and then reads back every
+`color`, `fill`, `stroke`, `background` and `box-shadow` on the board and the
+panels beside it. It reads the hexagons first and insists on finding 151 of
+them there, so that a reading of zero means something.
 
 **The page carries no explanatory prose.** Everything is in `title` tooltips —
 the heading, each control, the board, each of the four names in the Cell panel.

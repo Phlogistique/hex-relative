@@ -40,12 +40,13 @@
         </select>
       </label>
       <label
-        title="How the board is drawn. Hexagons, or a goban: the same position on the tiling's dual, where every cell becomes an intersection of a triangular grid and stones sit on the intersections, red playing black and blue playing white. The dots are the 4-4 points, which are 44, 44', 4'4 and 4'4' on every board size."
+        title="How the board is drawn. Hexagons, or the same position on the tiling's dual, where every cell becomes an intersection of a triangular grid and stones sit on the intersections, red playing black and blue playing white: goban draws it on a wooden board, diagram prints it straight on the page. The dots are the 4-4 points, which are 44, 44', 4'4 and 4'4' on every board size. No red and no blue survive the switch, so off the board the two are told apart by a mark being filled or hollow, as in a Go book."
       >
         <span class="hide-narrow">Board</span>
         <select id="style" aria-label="How the board is drawn">
           <option value="hex" selected>hexes</option>
           <option value="goban">goban</option>
+          <option value="diagram">diagram</option>
         </select>
       </label>
       <label

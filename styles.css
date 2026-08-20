@@ -215,11 +215,107 @@ main {
   pointer-events: none;
 }
 
-/* --- goban mode ---
+/* --- the go-style boards ---
    The same position on the tiling's dual: a triangular grid of lines with a
-   stone on each intersection, red playing black and blue playing white. The
-   hexagons stay where they are, unpainted, as the cell each intersection
-   answers to — its Voronoi cell, so pointing at one is still unambiguous. */
+   stone on each intersection, red playing black and blue playing white. Two of
+   them, differing only in what the grid is drawn on — `goban` is a wooden
+   board, `diagram` is the same lines printed on the page.
+
+   No red and no blue survive the switch, anywhere on the page. Which is a
+   problem worth stating: black and white are the two colours a page cannot
+   lend, since one of them is always the paper. So nothing off the board is
+   drawn in either. The distinction is carried the way a Go book carries it,
+   by a mark being filled or hollow, which reads the same whichever way round
+   the page is: the labels counting from red's edges are solid, blue's are
+   outlined, and the stone list's dots follow. Both are drawn in the page's own
+   ink, so both stay legible in either colour scheme. */
+
+.dual .grid-line {
+  /* width is set on each line, so the checks can read it back */
+  stroke-linecap: round;
+}
+
+.dual .band {
+  stroke-width: 0.03;
+}
+
+/* Red plays black and blue plays white, edges included, so which pair of
+   sides a colour is joining can be read off the stones. */
+.dual .band-red,
+.dual .band-redp {
+  fill: #17140f;
+}
+
+.dual .band-blue,
+.dual .band-bluep {
+  fill: #f6f1e6;
+}
+
+/* Nothing is painted under a stone, but the hexagon is still the click target
+   and still the thing that lights up under the pointer. It has to keep a fill:
+   `none` would stop taking clicks, and the board would go dead without looking
+   any different. */
+.dual .hex {
+  fill: transparent;
+  stroke: none;
+}
+
+.dual .hex-marked {
+  fill: color-mix(in srgb, var(--accent) 26%, transparent);
+  stroke: var(--accent);
+  stroke-width: 0.14;
+}
+
+/* The last stone is ringed in the other colour, as a Go diagram marks it. */
+.dual .stone-last.stone-red {
+  stroke: #f4f1e8;
+  stroke-opacity: 1;
+  stroke-width: 0.1;
+}
+
+.dual .stone-last.stone-blue {
+  stroke: #4a423a;
+  stroke-opacity: 1;
+  stroke-width: 0.1;
+}
+
+.dual .stone-winning.stone-red,
+.dual .stone-winning.stone-blue {
+  stroke: var(--accent);
+  stroke-opacity: 1;
+  stroke-width: 0.16;
+}
+
+.dual .stone-label {
+  fill: #f8f4ec;
+}
+
+.dual .stone-label.on-blue {
+  fill: #1b1712;
+}
+
+/* Solid for the numbers counting from red's edges, outlined for blue's. */
+.dual .axis-red {
+  fill: var(--ink);
+}
+
+/* Bolder than its solid partner: an outlined glyph needs thick strokes to
+   leave a counter you can see, and thin ones close up into a smudge. */
+.dual .axis-blue {
+  fill: var(--panel);
+  stroke: var(--ink);
+  stroke-width: 0.08;
+  paint-order: stroke;
+  font-weight: 700;
+}
+
+/* An outline has less ink in it than a solid glyph, so the far-edge line of
+   labels is stepped back less far here than it is beside the hexagons. */
+.dual .axis-alt {
+  opacity: 0.62;
+}
+
+/* --- the wooden one --- */
 
 .wood {
   fill: url(#goban-wood);
@@ -236,32 +332,38 @@ main {
   stop-color: var(--wood-deep);
 }
 
-.grid-line {
-  /* width is set on each line, so the checks can read it back */
+.style-goban .grid-line {
   stroke: var(--grid);
-  stroke-linecap: round;
   opacity: 0.85;
 }
 
-.star {
+.style-goban .star {
   fill: var(--grid);
 }
 
-.band {
+.style-goban .band {
   stroke: rgba(24, 18, 8, 0.5);
-  stroke-width: 0.03;
 }
 
-/* Red plays black and blue plays white, edges included, so which pair of
-   sides a colour is joining can be read off the stones. */
-.band-red,
-.band-redp {
-  fill: #17140f;
+.style-goban .cell:hover .hex {
+  fill: rgba(255, 255, 255, 0.18);
 }
 
-.band-blue,
-.band-bluep {
-  fill: #f6f1e6;
+.style-goban .stone {
+  filter: drop-shadow(0.045px 0.09px 0.09px rgba(0, 0, 0, 0.45));
+}
+
+.style-goban .stone-red {
+  fill: url(#stone-black);
+  stroke: #000;
+  stroke-opacity: 0.5;
+  stroke-width: 0.02;
+}
+
+.style-goban .stone-blue {
+  fill: url(#stone-white);
+  stroke: #a99e89;
+  stroke-width: 0.025;
 }
 
 .sheen-black {
@@ -288,65 +390,45 @@ main {
   stop-color: #cdc4b1;
 }
 
-/* Nothing is painted under a stone, but the hexagon is still the click target
-   and still the thing that lights up under the pointer. */
-.style-goban .hex {
-  fill: transparent;
-  stroke: none;
+/* --- the printed one ---
+   No board under the grid at all, so the page shows through, and whichever of
+   the two colours the page is wearing that day would vanish into it: the black
+   edges disappear on a dark page exactly as the white ones do on a light one.
+   So the bands are outlined in the page's ink and read as filled or hollow,
+   the same device the labels and the stone list use, and the stones carry a
+   mid-grey rim, which is the one tone that tells against black, white and
+   both backgrounds at once. */
+
+.style-diagram .grid-line {
+  stroke: var(--ink);
+  opacity: 0.45;
 }
 
-.style-goban .cell:hover .hex {
-  fill: rgba(255, 255, 255, 0.18);
+.style-diagram .star {
+  fill: var(--ink);
+  opacity: 0.7;
 }
 
-.style-goban .hex-marked {
-  fill: color-mix(in srgb, var(--accent) 26%, transparent);
-  stroke: var(--accent);
-  stroke-width: 0.14;
+.style-diagram .band {
+  stroke: var(--ink);
+  stroke-width: 0.055;
+  stroke-opacity: 0.8;
 }
 
-.style-goban .stone {
-  filter: drop-shadow(0.045px 0.09px 0.09px rgba(0, 0, 0, 0.45));
+.style-diagram .cell:hover .hex {
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
-.style-goban .stone-red {
-  fill: url(#stone-black);
-  stroke: #000;
-  stroke-opacity: 0.5;
-  stroke-width: 0.02;
+.style-diagram .stone-red {
+  fill: #16130f;
+  stroke: var(--muted);
+  stroke-width: 0.035;
 }
 
-.style-goban .stone-blue {
-  fill: url(#stone-white);
-  stroke: #a99e89;
-  stroke-width: 0.025;
-}
-
-/* The last stone is ringed in the other colour, as a Go diagram marks it. */
-.style-goban .stone-last.stone-red {
-  stroke: #f4f1e8;
-  stroke-opacity: 1;
-  stroke-width: 0.1;
-}
-
-.style-goban .stone-last.stone-blue {
-  stroke: #4a423a;
-  stroke-width: 0.1;
-}
-
-.style-goban .stone-winning.stone-red,
-.style-goban .stone-winning.stone-blue {
-  stroke: var(--accent);
-  stroke-opacity: 1;
-  stroke-width: 0.16;
-}
-
-.style-goban .stone-label {
-  fill: #f8f4ec;
-}
-
-.style-goban .stone-label.on-blue {
-  fill: #1b1712;
+.style-diagram .stone-blue {
+  fill: #fbf8f2;
+  stroke: var(--muted);
+  stroke-width: 0.035;
 }
 
 .border {
@@ -559,6 +641,20 @@ text {
   background: var(--blue);
 }
 
+/* Off the board the two colours have to be told apart without them: filled for
+   black, a ring for white, the way a Go book does it. Both are the page's own
+   ink, so neither depends on which way round the page is. */
+body[data-style="goban"] .dot-red,
+body[data-style="diagram"] .dot-red {
+  background: var(--ink);
+}
+
+body[data-style="goban"] .dot-blue,
+body[data-style="diagram"] .dot-blue {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
 .status {
   margin: 0.7rem 0 0;
   min-height: 1.4em;
@@ -577,6 +673,13 @@ text {
 
 .status-blue {
   color: var(--blue);
+}
+
+body[data-style="goban"] .status-red,
+body[data-style="goban"] .status-blue,
+body[data-style="diagram"] .status-red,
+body[data-style="diagram"] .status-blue {
+  color: var(--ink);
 }
 
 /* --- phones ---
