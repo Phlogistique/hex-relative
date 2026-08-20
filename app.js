@@ -251,6 +251,30 @@ function fitBoard() {
  * settles the cap in one go. The stylesheet is asked whether the page is one
  * column or two, rather than the breakpoint being written down here as well.
  */
+/**
+ * The height of the viewport that a phone's URL bar does not move.
+ *
+ * `innerHeight` is not it: the bar slides away as you scroll down and comes
+ * back as you scroll up, `innerHeight` follows it, and a resize fires each
+ * time — which is why the board was turning over mid-scroll on a screen near
+ * the size where the decision is close. The layout viewport does not move with
+ * the bar, and `svh` is that viewport at its smallest, the bar showing. That
+ * is also the one the Cell panel has to fit in, since the page is at the top
+ * and the bar is out when a tap has to be answered without scrolling.
+ */
+function steadyHeight() {
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden";
+  document.body.appendChild(probe);
+  const height = probe.getBoundingClientRect().height;
+  probe.remove();
+  // Where svh is not understood the declaration is dropped and the div has no
+  // height; there `innerHeight` is the best on offer and the bar is a phone's
+  // problem, not that browser's.
+  return height || innerHeight;
+}
+
 function roomForBoard(svg) {
   // `none`, should the stylesheet ever stop capping it, is no cap at all.
   const cap = parseFloat(getComputedStyle(svg).maxHeight) || Infinity;
@@ -262,7 +286,7 @@ function roomForBoard(svg) {
   if (columns > 1 || !answer) return cap;
   const box = svg.getBoundingClientRect();
   const below = answer.getBoundingClientRect().bottom - box.bottom;
-  return Math.min(cap, innerHeight - (box.top + scrollY) - below);
+  return Math.min(cap, steadyHeight() - (box.top + scrollY) - below);
 }
 
 function setSize(size) {

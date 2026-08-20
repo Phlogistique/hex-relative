@@ -52,7 +52,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `phone.mjs` | three screen sizes: no sideways overflow, panel above the fold |
-| `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear |
+| `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, and a URL bar sliding away does not turn it |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z |
 | `screenshots.mjs` | writes PNGs next to itself, for what only the eye can judge |
 
@@ -134,6 +134,22 @@ Three things are worth knowing before touching it:
   and it moved the goban's row labels out by an eighth of a cell — the gap they
   were meant to have had all along, `checks/goban.mjs` having measured to the
   anchor rather than to the nearest ink.
+
+**`innerHeight` is not the height of the screen on a phone.** It follows the
+URL bar, which slides away as you scroll down and comes back as you scroll up,
+and a resize fires each time. Measuring the room for the board with it turned
+the board over mid-scroll on a screen near the size where the decision is
+close — the one bug this drawing has had that a reader meets by doing nothing
+at all. `steadyHeight()` measures `100svh` through a probe instead: the layout
+viewport does not move with the bar, and `svh` is that viewport at its
+smallest, which is also the one the Cell panel has to fit in, the bar being out
+whenever the page is at the top.
+
+That is not reproducible by resizing the window, and the first attempt at a
+check was worthless for it: `setViewportSize` moves the layout viewport too, so
+`svh` moves with it and nothing is proved. The bar moves `innerHeight` alone.
+`checks/turned.mjs` redefines `window.innerHeight` and fires a resize, which is
+what the bar actually does, and refuses to pass if `svh` moved as well.
 
 **How much room the board has is measured, not assumed.** `app.js` compares the
 space left for the board with its own width and turns it if that pays, then
