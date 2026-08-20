@@ -295,8 +295,11 @@ export class HexBoard {
         cellLayer.appendChild(this.buildCell(col, row));
       }
     }
-    if (dual) this.buildBands(edgeLayer);
-    else this.buildEdges(edgeLayer);
+    // The slab names its edges with a coloured band. Where the coordinates are
+    // set in black and white stones of their own there is nothing left for a
+    // band to say, so that board does without one.
+    if (this.style === "goban") this.buildBands(edgeLayer);
+    else if (!dual) this.buildEdges(edgeLayer);
     const labels = this.buildLabels(labelLayer);
 
     this.svg = svg;
@@ -397,19 +400,23 @@ export class HexBoard {
   buildGrid(layer) {
     const { size } = this;
     const last = size - 1;
-    const draw = (a, b) => {
+    const draw = (a, b, edge) => {
       const line = document.createElementNS(SVG_NS, "line");
       line.setAttribute("x1", a.x);
       line.setAttribute("y1", a.y);
       line.setAttribute("x2", b.x);
       line.setAttribute("y2", b.y);
       line.setAttribute("stroke-width", GRID_WIDTH);
-      line.setAttribute("class", "grid-line");
+      line.setAttribute("class", `grid-line${edge ? " grid-edge" : ""}`);
       layer.appendChild(line);
     };
+    // The four lines round the outside are the board's boundary, and a goban
+    // draws those heavier. It is the only thing saying where the board stops
+    // once nothing coloured is doing it.
     for (let i = 0; i < size; i++) {
-      draw(center(0, i), center(last, i)); // a row, running flat
-      draw(center(i, 0), center(i, last)); // a column, running down the slant
+      const edge = i === 0 || i === last;
+      draw(center(0, i), center(last, i), edge); // a row, running flat
+      draw(center(i, 0), center(i, last), edge); // a column, down the slant
     }
     // The third family is where col + row is constant. Its two ends are the
     // acute corners of the board, where the line is a single point and there
@@ -581,11 +588,13 @@ export class HexBoard {
 
   /**
    * How far past the outermost intersections the go-style drawing reaches,
-   * square on to the edge: the wooden rim of the slab, or the far side of the
-   * coloured band where the wood runs on past the frame and has no rim.
+   * square on to the edge. The slab reaches to its wooden rim. With the wood
+   * running on past the frame there is no rim and no coloured band either, so
+   * the last thing out is a stone played on the outermost line, and it is that
+   * rim the coordinates keep their distance from.
    */
   edge() {
-    return this.style === "goban" ? WOOD : BAND + BORDER_WIDTH / 2;
+    return this.style === "goban" ? WOOD : STONE[this.style];
   }
 
   /**

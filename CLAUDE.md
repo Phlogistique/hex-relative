@@ -117,6 +117,14 @@ off the stones. Off the board it is not, because black and white are exactly
 the two colours a page cannot lend: one of them is always the paper, and which
 one depends on the colour scheme. Nothing outside the board is drawn in either.
 
+Dropping the bands from `full` was asked for and is worth knowing the cost of.
+They said which pair of sides each colour was joining, and the pills do not
+say it: a pill counts from the edges it faces *across* the board, so black ones
+run down the left and right flanks while black's own edges are the top and the
+bottom. Nothing on that board contradicts a reader who assumes otherwise. The
+cheap way back, if it is ever wanted, is to colour the four `grid-edge` lines
+rather than to bring the bands back — one rule, no extra room taken.
+
 There are two ways out and the boards take one each. Given wood to print on,
 black and white can be used outright, so `full` sets every coordinate in a
 pill — a coordinate written on a stone, which brings its own background and so

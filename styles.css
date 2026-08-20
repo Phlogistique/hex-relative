@@ -405,6 +405,13 @@ main {
    saying black and white that needs nothing from the paper, since the pill
    brings its own background with it. */
 
+/* Nothing coloured marks the edges here, so the outermost lines carry it, the
+   way a goban's border lines are drawn heavier than the rest. */
+.style-full .grid-edge {
+  stroke-width: 0.1;
+  opacity: 1;
+}
+
 body[data-style="full"] .board {
   background: linear-gradient(160deg, var(--wood) 0%, var(--wood-deep) 100%);
   border-color: var(--wood-rim);

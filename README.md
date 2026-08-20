@@ -34,10 +34,12 @@ controls, the board and each of the four names in the Cell panel.
 The `Board` control redraws the same position on the tiling's dual, where each cell becomes an
 intersection of a triangular grid and a stone sits on the intersection, red playing black and blue
 playing white. Two of them, differing in how much of the page is board: `goban` lays a wooden slab on it and prints
-the coordinates outside, `edge to edge` runs the wood out to the frame and prints them on it. The
-edges keep their owners, black along the two red sides and white along the two blue ones, and the
-dots are the 4-4 points and the centre — the star points a Go board would carry, put where they mean
-something here, since `44`, `44'`, `4'4` and `4'4'` are those names on every board size.
+the coordinates outside, `edge to edge` runs the wood out to the frame and prints them on it. On the
+slab the edges keep their owners, black along the two red sides and white along the two blue ones;
+edge to edge does without, its coordinates being black and white already, and marks the boundary the
+way a goban does, by drawing the four outermost lines heavier than the rest. The dots are the 4-4
+points and the centre — the star points a Go board would carry, put where they mean something here,
+since `44`, `44'`, `4'4` and `4'4'` are those names on every board size.
 
 No red and no blue survives that switch, anywhere on the page: not the coordinates, not the stone
 list, not the win message. Which leaves a problem, since black and white are the two colours a page

@@ -7,9 +7,10 @@
  * the first measure counts how many of those lines actually run through each
  * cell — three everywhere but the two acute corners, where the third family
  * has shrunk to a point. Then clearance: a stone played on the edge must not
- * touch the coloured band beyond it, and a row label must stand the same GAP
- * off the board's edge as it does off the hexagons, which is a longer step
- * sideways because that edge is slanted and theirs is not.
+ * touch whatever is drawn round the board — the coloured band on the slab, the
+ * coordinates' own pills where there is no band — and a row label must stand
+ * the same GAP off the board's edge as it does off the hexagons, which is a
+ * longer step sideways because that edge is slanted and theirs is not.
  *
  * The last of them is not about position at all. These boards are meant to
  * have no red and no blue anywhere on them, which is easy to say and easy to
@@ -85,12 +86,33 @@ function measure() {
     }
   }
 
-  const bands = [...document.querySelectorAll(".band")].map((band) => ({
-    edge: band.getAttribute("class").split("band-")[1],
-    outline: corners(band),
-  }));
+  // Whatever is drawn round the outside of the board and could be fouled by a
+  // stone played on the edge: the coloured bands where there are any, and the
+  // pills the coordinates are set in where there are those instead.
+  const box = (node) => {
+    const x = +node.getAttribute("x");
+    const y = +node.getAttribute("y");
+    const w = +node.getAttribute("width");
+    const h = +node.getAttribute("height");
+    return [
+      { x, y },
+      { x: x + w, y },
+      { x: x + w, y: y + h },
+      { x, y: y + h },
+    ];
+  };
+  const around = [
+    ...[...document.querySelectorAll(".band")].map((band) => ({
+      what: `the ${band.getAttribute("class").split("band-")[1]} band`,
+      outline: corners(band),
+    })),
+    ...[...document.querySelectorAll(".pill")].map((pill) => ({
+      what: `a ${pill.dataset.side} pill`,
+      outline: box(pill),
+    })),
+  ];
 
-  // The nearest any stone's rim comes to any band.
+  // The nearest any stone's rim comes to any of it.
   let clearance = { gap: Infinity };
   for (const cell of document.querySelectorAll(".cell")) {
     const stone = cell.querySelector(".stone");
@@ -100,26 +122,38 @@ function measure() {
       .match(/translate\(([-\d.]+) ([-\d.]+)\)/)
       .map(Number);
     const r = +stone.getAttribute("r");
-    for (const band of bands) {
-      const gap = toOutline({ x, y }, band.outline) - r;
-      if (gap < clearance.gap) clearance = { gap, x, y, edge: band.edge };
+    for (const thing of around) {
+      const gap = toOutline({ x, y }, thing.outline) - r;
+      if (gap < clearance.gap) clearance = { gap, x, y, what: thing.what };
     }
   }
 
-  // The left flank of whatever the board is drawn out to. On the slab that is
-  // the rim: the polygon is drawn half a bevel short of it and stroked back
-  // out, so the paint reaches further than the points say. Where the wood runs
-  // on past the frame there is no rim, and it is the far side of blue's band.
+  // The left flank of whatever the board is drawn out to, and how much further
+  // than its own geometry that reaches. On the slab it is the wooden rim: the
+  // polygon is drawn half a bevel short of it and stroked back out, so the
+  // paint goes further than the points say. With the wood running on past the
+  // frame there is no rim and no band either, and the last thing out on that
+  // side is a stone played on the outermost line.
   const wood = document.querySelector(".wood");
+  const band = document.querySelector(".band-blue");
   let a, b, painted;
   if (wood) {
     const rim = corners(wood);
     [a, b] = [rim[3], rim[0]]; // sides run top, right, bottom, left
     painted = +wood.getAttribute("stroke-width") / 2 / HALF_WIDTH;
-  } else {
-    const band = corners(document.querySelector(".band-blue"));
-    [a, b] = [band[2], band[3]]; // the two corners on the far side of it
+  } else if (band) {
+    const outer = corners(band);
+    [a, b] = [outer[2], outer[3]]; // the two corners on the far side of it
     painted = 0;
+  } else {
+    // The column running down the left, told from the row sharing its corner
+    // by where it ends rather than where it starts.
+    const line = [...document.querySelectorAll(".grid-edge")].find(
+      (l) => +l.getAttribute("x1") === 0 && +l.getAttribute("y2") !== 0,
+    );
+    a = { x: +line.getAttribute("x1"), y: +line.getAttribute("y1") };
+    b = { x: +line.getAttribute("x2"), y: +line.getAttribute("y2") };
+    painted = +document.querySelector(".stone").getAttribute("r") / HALF_WIDTH;
   }
   const flank = (y) => a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y) - painted;
 
@@ -252,14 +286,14 @@ await check("What the go-style boards leave clear", async ({ open }) => {
     const gaps = rows.map((r) => r.gap);
 
     console.log(
-      `  ${style.padEnd(6)} stones clear the bands by ` +
-        `${clearance.gap.toFixed(3)} (the ${clearance.edge} one)   ` +
+      `  ${style.padEnd(6)} stones clear what is round them by ` +
+        `${clearance.gap.toFixed(3)} (${clearance.what})   ` +
         `${rows[0].pilled ? "pilled " : ""}row labels face the edge at ` +
         `${Math.min(...gaps).toFixed(3)}..${Math.max(...gaps).toFixed(3)}`,
     );
     if (clearance.gap < 0.15) {
       throw new Error(
-        `${style}: a stone comes within ${clearance.gap} of the ${clearance.edge} band`,
+        `${style}: a stone comes within ${clearance.gap} of ${clearance.what}`,
       );
     }
     for (const r of rows) {
