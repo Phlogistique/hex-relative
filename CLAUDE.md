@@ -150,6 +150,12 @@ and by `0.085` the counters have closed on the largest board and the numbers
 stop reading as hollow and start reading as grey. They sit at `500`/`0.07`
 with round joins.
 
+The relabelling reaches the toolbar too: `red only` and `blue only` in the
+placing menu read `black only` and `white only` beside a goban. Only what is
+printed changes — the option values stay `red` and `blue`, since that is what
+the cells, the history and the URL call them whichever way the board is drawn,
+and `PLACING` in `app.js` sits beside `WON` so the two stay in step.
+
 The rule is worth a check because it is easy to leave half-done — it caught a
 missed rename here, the stone list's dots having been keyed on each drawing's
 name. They hang off `body[data-dual]` now, so another go-style board needs no

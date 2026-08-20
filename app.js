@@ -142,9 +142,14 @@ function renderMoves() {
 }
 
 /**
- * Who has won, in the vocabulary the board is currently drawn in. A go-style
- * board has no red or blue on it to name, so the winner is named by the stones
- * that are there and by the pair of sides they joined.
+ * The two colours, in the vocabulary the board is currently drawn in. A
+ * go-style board has no red or blue on it to name, so the winner is named by
+ * the stones that are there and by the pair of sides they joined, and the
+ * toolbar offers black and white to place.
+ *
+ * Only what is printed changes. The values behind the placing options stay
+ * `red` and `blue`, since that is what the cells, the history and the URL call
+ * them whichever way the board is drawn.
  */
 const WON = {
   hex: {
@@ -157,6 +162,11 @@ const WON = {
   },
 };
 
+const PLACING = {
+  hex: { red: "red only", blue: "blue only" },
+  stones: { red: "black only", blue: "white only" },
+};
+
 function renderStatus() {
   const path = board.winningPath();
   if (!path.length) {
@@ -165,14 +175,16 @@ function renderStatus() {
     return;
   }
   const colour = board.stoneAt(path[0].col, path[0].row);
-  ui.status.textContent = WON[board.style === "hex" ? "hex" : "stones"][colour];
+  ui.status.textContent = WON[vocabulary()][colour];
   ui.status.className = `status status-${colour}`;
 }
 
+const vocabulary = () => (board.style === "hex" ? "hex" : "stones");
+
 /**
- * Switch the drawing, and the page along with it: the stone list and the win
- * message say red and blue beside the hexagons and black and white beside a
- * board that has no red or blue on it.
+ * Switch the drawing, and the page along with it: the toolbar, the stone list
+ * and the win message say red and blue beside the hexagons, and black and
+ * white beside a board that has no red or blue on it.
  */
 function setStyle(mode) {
   document.body.dataset.style = mode;
@@ -181,6 +193,9 @@ function setStyle(mode) {
   // stylesheet leaves a rule to forget every time another is added.
   document.body.toggleAttribute("data-dual", mode !== "hex");
   board.setStyle(mode);
+  for (const [value, text] of Object.entries(PLACING[vocabulary()])) {
+    ui.mode.querySelector(`option[value="${value}"]`).textContent = text;
+  }
   renderStatus();
 }
 

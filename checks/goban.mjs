@@ -283,6 +283,43 @@ await check("No red and no blue on the goban", async ({ open }) => {
   }
 });
 
+await check("What the toolbar calls the two colours", async ({ open }) => {
+  // The board has no red or blue on it, so nothing that names a player beside
+  // it should either. The values behind the options do not move: the cells,
+  // the history and the URL call them red and blue whichever way the board is
+  // drawn, and only what is printed changes.
+  const page = await open("#9");
+  const read = () =>
+    page.$$eval("#mode option", (options) =>
+      options.map((o) => `${o.value}=${o.textContent}`).join("  "),
+    );
+
+  const hexes = await read();
+  await page.selectOption("#style", "goban");
+  await page.waitForTimeout(120);
+  const goban = await read();
+  console.log(`  hexes  ${hexes}`);
+  console.log(`  goban  ${goban}`);
+
+  for (const [where, got, wanted] of [
+    ["hexes", hexes, "red=red only  blue=blue only"],
+    ["goban", goban, "red=black only  blue=white only"],
+  ]) {
+    if (!got.includes(wanted)) {
+      throw new Error(`${where}: placing reads "${got}", wanted "${wanted}"`);
+    }
+  }
+
+  // And back again, since a one-way switch would pass everything above.
+  await page.selectOption("#style", "hex");
+  await page.waitForTimeout(120);
+  const back = await read();
+  if (back !== hexes) {
+    throw new Error(`switching back left placing reading "${back}"`);
+  }
+  console.log("  and back to red and blue on returning to the hexagons");
+});
+
 await check("Placing on the goban", async ({ open }) => {
   // Nothing is painted under a stone here: the hexagons are still there as the
   // click target, but transparent. A fill of `none` would stop taking clicks,
