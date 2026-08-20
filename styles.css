@@ -16,7 +16,6 @@
   --wood-deep: #dab273;
   --wood-rim: #a8813f;
   --grid: #4a3115;
-  --wood-ink: #4a3b26;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,7 +35,6 @@
     --wood-deep: #b98c4c;
     --wood-rim: #8a6229;
     --grid: #4b330f;
-    --wood-ink: #3b2c15;
   }
 }
 
@@ -301,14 +299,23 @@ main {
   fill: var(--ink);
 }
 
-/* Bolder than its solid partner: an outlined glyph needs thick strokes to
-   leave a counter you can see, and thin ones close up into a smudge. */
+/* Outlined by stroking the glyphs themselves and painting the fill over the
+   inside half of that stroke, which is what `paint-order` buys: no second copy
+   of the text, no conversion to paths, and an outline of even thickness all
+   the way round. A grown copy behind will not do it — a glyph scaled about its
+   origin drifts as it grows, so the halo comes out lopsided.
+   The stroke has to be thin, and the stems only a little heavier than their
+   solid partner's to hold a counter open against it. Both were settled by
+   looking: at 700/0.08 the digits go clumsy, and below 500/0.055 the counters
+   close on a large board and the numbers read as grey rather than as hollow. */
 .dual .axis-blue {
   fill: var(--panel);
   stroke: var(--ink);
-  stroke-width: 0.08;
+  stroke-width: 0.055;
+  stroke-linejoin: round;
+  stroke-linecap: round;
   paint-order: stroke;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 /* An outline has less ink in it than a solid glyph, so the far-edge line of
@@ -396,62 +403,6 @@ main {
 
 .rim-white {
   stop-color: #cdc4b1;
-}
-
-/* --- wood to the frame ---
-   No slab and no rim: the timber is the whole panel, so the coordinates have a
-   mid-tone to be printed on and can be black and white outright. Each one is
-   set in a pill — a coordinate written on a stone — which is the one way of
-   saying black and white that needs nothing from the paper, since the pill
-   brings its own background with it. */
-
-/* Nothing coloured marks the edges here, so the outermost lines carry it, the
-   way a goban's border lines are drawn heavier than the rest. */
-.style-full .grid-edge {
-  stroke-width: 0.1;
-  opacity: 1;
-}
-
-body[data-style="full"] .board {
-  background: linear-gradient(160deg, var(--wood) 0%, var(--wood-deep) 100%);
-  border-color: var(--wood-rim);
-  box-shadow: inset 0 0 2.5rem rgba(72, 45, 8, 0.16);
-}
-
-.pill-red {
-  fill: #17140f;
-}
-
-.pill-blue {
-  fill: #f7f2e8;
-}
-
-/* Which pill a coordinate sits in follows the side it is printed on — rows are
-   named from red's edges and columns from blue's — so it holds for the
-   standard spelling of the coordinates as well as the relative one. */
-.style-full .labels text[data-side="left"][data-line="0"],
-.style-full .labels text[data-side="right"][data-line="0"] {
-  fill: #f8f4ec;
-  stroke: none;
-  font-weight: 600;
-}
-
-.style-full .labels text[data-side="top"][data-line="0"],
-.style-full .labels text[data-side="bottom"][data-line="0"] {
-  fill: #16130f;
-  stroke: none;
-  font-weight: 600;
-}
-
-/* The far-edge name goes on the bare wood beside its pill, in the wood's own
-   ink. It needs no colour of its own: it names the same row or column as the
-   pill it sits against, so that pill already says which of the two it belongs
-   to. */
-.style-full .labels text[data-line="1"] {
-  fill: var(--wood-ink);
-  stroke: none;
-  font-weight: 600;
-  opacity: 0.85;
 }
 
 .border {

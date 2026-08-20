@@ -31,32 +31,21 @@ those stones rather than to the bottom edge — and does not change with board s
 The page itself carries no explanatory prose; everything is in tooltips, on the heading, the
 controls, the board and each of the four names in the Cell panel.
 
-The `Board` control redraws the same position on the tiling's dual, where each cell becomes an
-intersection of a triangular grid and a stone sits on the intersection, red playing black and blue
-playing white. Two of them, differing in how much of the page is board: `goban` lays a wooden slab on it and prints
-the coordinates outside, `edge to edge` runs the wood out to the frame and prints them on it. On the
-slab the edges keep their owners, black along the two red sides and white along the two blue ones;
-edge to edge does without, its coordinates being black and white already, and marks the boundary the
-way a goban does, by drawing the four outermost lines heavier than the rest. The dots are the 4-4
-points and the centre — the star points a Go board would carry, put where they mean something here,
-since `44`, `44'`, `4'4` and `4'4'` are those names on every board size.
+The `Board` control redraws the same position on the tiling's dual: a goban, where each cell becomes
+an intersection of a triangular grid and a stone sits on the intersection, red playing black and blue
+playing white. The edges keep their owners, black along the two red sides and white along the two
+blue ones, and the dots are the 4-4 points and the centre — the star points a Go board would carry,
+put where they mean something here, since `44`, `44'`, `4'4` and `4'4'` are those names on every
+board size.
 
 No red and no blue survives that switch, anywhere on the page: not the coordinates, not the stone
 list, not the win message. Which leaves a problem, since black and white are the two colours a page
-cannot lend — one of them is always the paper, and on a dark page it is the other one.
-
-Where there is wood under a coordinate there is no problem, and `edge to edge` makes sure there is:
-each one is set in a pill, black with light digits for the names counted from red's edges and white
-with dark ones for blue's. A coordinate written on a stone, which needs nothing from the paper
-because the pill brings its own background. Only the near-edge name gets a pill — both names of a
-row name the same row, so one says which of the two the pair belongs to, and a second line of them
-would turn the border into a wall of stones.
-
-Beside the slab, and in the stone list either way, there is no wood to print on, so the two are told
-apart the way a Go book tells them apart instead: by a mark being filled or hollow, which reads the
-same whichever way round the page is. The coordinates counting from red's edges are solid and blue's
-are outlined; the dots in the stone list are a disc and a ring. The win message says which pair of
-sides was joined rather than naming a colour that is no longer there.
+cannot lend — one of them is always the paper, and on a dark page it is the other one. So nothing
+off the board is drawn in either. The two are told apart the way a Go book tells them apart, by a
+mark being filled or hollow, which reads the same whichever way round the page is: the coordinates
+counting from red's edges are solid and blue's are outlined, and the dots in the stone list are a
+disc and a ring. The win message says which pair of sides was joined rather than naming a colour
+that is no longer there.
 
 Both names of every row and column are printed on all four sides of the board: against the board the
 one measured from the nearer edge, running 1 up to about half the board and back down, and outside
@@ -104,12 +93,12 @@ its own (`#9:ra1,rb1`) is still read, so links shared before are not broken.
 | file | contents |
 |---|---|
 | `mason.js` | the coordinate system: `relative`, `variants`, `format`, `parse`, `distances` — no DOM |
-| `board.js` | the SVG board: geometry, edge borders, labels, win detection, the two go-style drawings |
+| `board.js` | the SVG board: geometry, edge borders, labels, win detection, the goban drawing |
 | `url.js` | the URL fragment: hexworld's format, read and written — no DOM |
 | `app.js` | UI wiring: toolbar, readout, stone list, history |
 | `mason.test.mjs` | checks against every worked example on the wiki page |
 | `url.test.mjs` | checks the fragment against hexworld's format |
-| `checks/` | browser checks: layout, clicking, history, phones, the go-style boards, the largest board — see `CLAUDE.md` |
+| `checks/` | browser checks: layout, clicking, history, phones, the goban, the largest board — see `CLAUDE.md` |
 
 `mason.js` and `url.js` have no dependencies and no DOM references, so either can be reused
 on its own.
@@ -138,8 +127,8 @@ the only workflow runs the tests.
 ## Board conventions
 
 Pointy-top hexagons in a rhombus, in HexWiki's orientation: red joins top to bottom, blue joins left
-to right. The go-style boards draw the dual of that tiling and nothing else changes: the cells, their
-names, what a click does and what goes in the URL are all the same, and only the drawing differs. Columns are lettered `a`… from the left, rows numbered `1`… from the top, so standard
+to right. The goban draws the dual of that tiling and nothing else changes: the cells, their names,
+what a click does and what goes in the URL are all the same, and only the drawing differs. Columns are lettered `a`… from the left, rows numbered `1`… from the top, so standard
 coordinates such as `d10` agree with HexWiki and hexworld.org.
 
 Boards run from 2×2 to 53×53, which is as far as hexworld goes as well. Past the 26th column the

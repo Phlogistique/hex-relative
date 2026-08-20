@@ -44,7 +44,7 @@ worth reading as much as running.
 | check | what it holds down |
 |---|---|
 | `labels.mjs` | every coordinate label stands exactly `GAP` off the edge it faces |
-| `goban.mjs` | the two go-style drawings: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
+| `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
@@ -99,12 +99,11 @@ measuring in the browser rather than nudging a number:
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
 
-**The go-style boards are other drawings of the same board, not other
-boards.** `style` picks between the three in `render()`; everything else — the
-cells, the history, the URL, the hit testing — is shared and untouched. Two of
-them are go-style and share the `dual` class: `goban` lays a wooden slab on the
-page, `full` runs the wood out to the frame. The hexagons are still there in
-both, transparent, because
+**The goban is another drawing of the same board, not another board.**
+`style` picks between the two in `render()`; everything else — the cells, the
+history, the URL, the hit testing — is shared and untouched. The go-style
+drawing hangs off the `dual` class. The hexagons are still there in it,
+transparent, because
 they are the click target and the Voronoi cell of the intersection, so pointing
 at one still names exactly one cell. `fill: transparent` rather than
 `fill: none`: `none` stops taking clicks, and the board would go dead without
@@ -117,30 +116,34 @@ off the stones. Off the board it is not, because black and white are exactly
 the two colours a page cannot lend: one of them is always the paper, and which
 one depends on the colour scheme. Nothing outside the board is drawn in either.
 
-Dropping the bands from `full` was asked for and is worth knowing the cost of.
-They said which pair of sides each colour was joining, and the pills do not
-say it: a pill counts from the edges it faces *across* the board, so black ones
-run down the left and right flanks while black's own edges are the top and the
-bottom. Nothing on that board contradicts a reader who assumes otherwise. The
-cheap way back, if it is ever wanted, is to colour the four `grid-edge` lines
-rather than to bring the bands back — one rule, no extra room taken.
+The device that replaces them is filled against hollow, which is how a Go book
+does it and is the one distinction that survives the page turning over: the
+coordinates counting from red's edges are solid, blue's are outlined in the
+page's own ink, and the stone list's dots are a disc and a ring.
 
-There are two ways out and the boards take one each. Given wood to print on,
-black and white can be used outright, so `full` sets every coordinate in a
-pill — a coordinate written on a stone, which brings its own background and so
-owes the page nothing. Where there is no wood — outside the slab, and in the
-stone list either way — the device is filled against hollow, which is how a Go
-book does it and is the one distinction that survives the page turning over:
-red's coordinates solid, blue's outlined in the page's own ink, and the stone
-list's dots a disc and a ring. Hollow numerals need bold stems: at
-`font-weight: 400` the outlines close up into a smudge on a large board.
+The outline is the browser's own, and it is worth knowing which of the three
+ways of asking for one this is. It is not a second copy of the text and not a
+conversion to paths: it is `stroke` on the `<text>` with `paint-order: stroke`,
+so the glyphs themselves are stroked and the fill then covers the inside half
+of that stroke, leaving an even outline all the way round.
 
-Only the near-edge name is pilled. Both names of a row name the same row, so
-one pill says which pair it belongs to, and `buildPills` skipping the second
-line is the difference between a border and a wall of stones. It costs a
-clearance rule: the pill is what faces the board once there is one, so `pill()`
-reports the overhang and `layoutLabels` gives it up out of the ink's position,
-which is why the pilled labels still measure `GAP` in `checks/goban.mjs`.
+Put another way, stroking *is* a morphological dilation of the glyph by a disc,
+done in vector space, and that is the thing you actually want. The other two
+readings of "grow the letter and set it behind" both fail, and both were tried:
+
+- **Scaling it up** is not a dilation at all. A glyph scaled about its origin
+  drifts as it grows, so the halo comes out thick on one side and absent on the
+  other. Visibly wrong at a glance.
+- **`feMorphology operator="dilate"`** is a real dilation and is native, but its
+  structuring element is a rectangle and it works on the rasterised result, so
+  the diagonals come out stepped and the corners squared off. Blurring and
+  re-thresholding it softens that and leaves the thickness uneven. Both are
+  worse than the stroke at every board size.
+
+The weight and the stroke width were settled by looking at 13, 19 and 53 side
+by side: at `700`/`0.08` the digits go clumsy, and below `500`/`0.055` the
+counters close on the largest board and the numbers stop reading as hollow and
+start reading as grey. They sit at `500`/`0.055` with round joins.
 
 The rule is worth a check because it is easy to leave half-done — it caught a
 missed rename here, the stone list's dots having been keyed on each drawing's
