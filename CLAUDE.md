@@ -134,16 +134,21 @@ readings of "grow the letter and set it behind" both fail, and both were tried:
 - **Scaling it up** is not a dilation at all. A glyph scaled about its origin
   drifts as it grows, so the halo comes out thick on one side and absent on the
   other. Visibly wrong at a glance.
-- **`feMorphology operator="dilate"`** is a real dilation and is native, but its
-  structuring element is a rectangle and it works on the rasterised result, so
-  the diagonals come out stepped and the corners squared off. Blurring and
-  re-thresholding it softens that and leaves the thickness uneven. Both are
-  worse than the stroke at every board size.
+- **`feMorphology operator="dilate"`** is a real dilation and is native, and it
+  is much the closer of the two: matched for thickness it is hard to tell from
+  the stroke at all. What sets them apart is that its structuring element is a
+  rectangle, so it grows a diagonal by `r√2` where it grows an upright by `r` —
+  which is also why it looks heavier than a stroke of nominally the same
+  radius, and why comparing the two without matching them first is misleading.
+  It also works on the rasterised result, so it does not survive being scaled,
+  and it costs a filter and a second copy of every label. The stroke is the
+  same idea for less.
 
 The weight and the stroke width were settled by looking at 13, 19 and 53 side
-by side: at `700`/`0.08` the digits go clumsy, and below `500`/`0.055` the
-counters close on the largest board and the numbers stop reading as hollow and
-start reading as grey. They sit at `500`/`0.055` with round joins.
+by side: at `700` the digits go clumsy, below `0.055` the outline goes timid,
+and by `0.085` the counters have closed on the largest board and the numbers
+stop reading as hollow and start reading as grey. They sit at `500`/`0.07`
+with round joins.
 
 The rule is worth a check because it is easy to leave half-done — it caught a
 missed rename here, the stone list's dots having been keyed on each drawing's
