@@ -1,13 +1,19 @@
 /**
  * The page on a phone. The screen is narrow and the board wants to be big, so
- * what matters is that nothing overflows sideways and that the Cell panel —
- * where a tap's answer appears — is on screen without scrolling.
+ * what matters is that nothing overflows sideways and that the board, with the
+ * answer to a tap under it, fits on the screen.
  *
- * Those two are what the board is measured against before it is drawn: where
- * standing the rhombus on its long diagonal pays, it is stood up and given the
- * room left above the panel, and where it does not, nothing changes. Which way
- * each of these screens went is printed; checks/turned.mjs is where the turn
- * itself is held down.
+ * Fits on the screen, not fits under the toolbar: what stands above the board
+ * the reader can scroll off the top, so it is not taken from the board, and on
+ * a phone the board is deliberately drawn taller than the room the page
+ * happens to leave it at rest. What may not go off the bottom is the answer,
+ * since a tap that scrolls its own answer out of sight is no use — so the
+ * board and that answer together are what has to fit, and that is measured
+ * here against `svh`, the screen a phone promises whatever its URL bar is
+ * doing.
+ *
+ * Which way round each of these screens drew the board is printed;
+ * checks/turned.mjs is where the turn itself is held down.
  *
  * Touch has no hover, so the `nothing (just name cells)` mode is the only way
  * to name a cell without disturbing the position; that is checked here too.
@@ -61,23 +67,42 @@ await check("On a phone", async ({ open }) => {
       board: Math.round(
         document.querySelector(".board").getBoundingClientRect().top,
       ),
-      panel: Math.round(
-        document.querySelector(".card").getBoundingClientRect().top,
-      ),
+      // The board and what has to stay under it, against the screen they have
+      // to fit in: the bottom of the answer to a tap, measured from the top of
+      // the board rather than from the top of the page, since everything above
+      // the board scrolls away.
+      needs: (() => {
+        const box = document
+          .querySelector(".hex-board")
+          .getBoundingClientRect();
+        const answer = document.querySelector(".readout-main");
+        return Math.round(answer.getBoundingClientRect().bottom - box.top);
+      })(),
+      screen: (() => {
+        const probe = document.createElement("div");
+        probe.style.cssText =
+          "position:fixed;top:0;left:0;width:0;height:100svh;visibility:hidden";
+        document.body.appendChild(probe);
+        const height = probe.getBoundingClientRect().height;
+        probe.remove();
+        return Math.round(height);
+      })(),
       height: innerHeight,
     }));
     console.log(
-      `  ${pad(label, 16)}board at ${pad(got.board, 5)} panel at ${pad(got.panel, 5)} of ${pad(got.height, 5)}` +
+      `  ${pad(label, 16)}board at ${pad(got.board, 5)}, and board plus answer ` +
+        `${pad(got.needs, 5)} of ${pad(got.screen, 5)}` +
         `  ${pad(got.drawn, 5)} ${pad(`cell ${got.cell}px`, 12)}` +
         `${pad(`${got.slack}px of width to spare`, 24)}` +
         `  ${got.scroll > got.client ? "OVERFLOWS" : "no sideways overflow"}`,
     );
     if (got.scroll > got.client) throw new Error(`${label} overflows sideways`);
-    // Held sideways there is no room for masthead, board and panel at once —
-    // 390px of height against a board capped at 78vh — so that screen scrolls,
-    // and only the upright ones have to answer a tap without moving.
-    if (viewport.height > viewport.width && got.panel > got.height) {
-      throw new Error(`${label}: the Cell panel is below the fold`);
+    // A pixel of slack: the room is measured in floats and written back as a
+    // px cap, and the answer's own height is not a whole number of them.
+    if (got.needs > got.screen + 1) {
+      throw new Error(
+        `${label}: board and answer want ${got.needs}px of ${got.screen}`,
+      );
     }
     await page.close();
   }

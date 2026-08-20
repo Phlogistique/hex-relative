@@ -148,9 +148,11 @@ main {
   /* Keep the whole board on screen rather than letting a wide rhombus run off
      the bottom; the drawing centres itself in whatever box is left.
 
-     A board standing on its long diagonal would run off the bottom of a phone
-     long before 78vh, so where it does the script measures the room actually
-     left under it — the Cell panel keeping its own place — and says so here. */
+     78vh is only what stands until the script has measured. Where the panel is
+     under the board rather than beside it, the board may have the screen less
+     what has to stay under it — the answer to a tap — and that is what comes
+     back here, which on a phone is more than 78vh and is why the board is
+     worth scrolling to. */
   max-height: var(--board-room, 78vh);
   touch-action: manipulation;
   /* Stops a long press on a cell from raising iOS's selection callout, which
@@ -732,7 +734,14 @@ body[data-dual] .status-blue {
 }
 
 /* A phone held sideways has plenty of width and almost no height, so the
-   masthead gives way to the board. */
+   masthead gives way to the board.
+
+   Height is what the board is short of there, and it is the one screen where
+   the answer to a tap is what binds: it is the board's own height that has to
+   leave room for it, and on a wide screen the panel is laid out for a desktop
+   and takes a third of the screen to say one coordinate. So the panel is
+   trimmed as it is on a narrow screen — the same trims, for the same reason —
+   and what that frees goes straight into the board. */
 @media (max-height: 500px) and (orientation: landscape) {
   body {
     padding-top: 0.6rem;
@@ -745,6 +754,23 @@ body[data-dual] .status-blue {
   .toolbar {
     margin: 0.6rem 0;
     padding: 0.4rem 0.5rem;
+  }
+
+  main {
+    gap: 1rem;
+  }
+
+  .card {
+    padding: 0.7rem 0.8rem 0.8rem;
+  }
+
+  .coord {
+    font-size: 1.7rem;
+  }
+
+  .status:empty {
+    min-height: 0;
+    margin: 0;
   }
 }
 

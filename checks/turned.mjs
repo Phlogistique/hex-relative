@@ -378,19 +378,22 @@ await check(
  * out of the upright one's width, where lying down it took the same width out
  * of a side with room to spare. The upright drawing therefore comes out
  * slightly stouter than the lying one turned on its side, and that leaves a
- * band of screens — a few percent wide, and a phone held upright is often in
- * it — where the box is wider than it is tall and standing the board up still
- * draws it bigger.
+ * band of boxes a few percent wide — slightly wider than they are tall — where
+ * standing the board up still draws it bigger.
  *
  * The band is worked out here from the two drawings, a screen is built to land
  * in the middle of it, and the page has to stand the board up there and draw
- * it bigger for having done so.
+ * it bigger for having done so. That screen comes out short and wide, since
+ * the board's box is the screen less what has to stay under the board: a
+ * phone held upright is well past the band, its box being much taller than it
+ * is wide, and this is what settles the screens that are not.
  */
 await check(
   "Turning pays before the box is taller than it is wide",
   async ({ open }) => {
-    // Narrow enough that the chrome above the board leaves a box near enough
-    // square for the band to be reachable at all.
+    // A phone's width. The screen that lands in the band is worked out from
+    // it below, and comes out short: the board has the screen less what has to
+    // stay under it, so a box as wide as it is tall wants a short screen.
     const WIDTH = 360;
 
     for (const style of ["hex", "goban"]) {
@@ -404,7 +407,7 @@ await check(
       }
 
       // What the page needs to know about itself: how wide the board's box is,
-      // what stands above and below it, and how big the drawing comes out each
+      // what has to stay under it, and how big the drawing comes out each
       // way round. The shapes are asked of the board itself, which draws the way
       // round it is not showing out of sight to answer; they are checked against
       // a real drawing of that orientation, since a hidden drawing that measured
@@ -441,9 +444,9 @@ await check(
           drawn,
           asked,
           width: box.width,
-          // Everything the board is not allowed to take: what stands above it,
-          // and what has to stay on screen under it.
-          above: box.top + scrollY,
+          // All the board is not allowed to take: what has to stay on screen
+          // under it. What stands above it does not count against the board,
+          // the reader being able to scroll that off the top.
           below: answer.getBoundingClientRect().bottom - box.bottom,
         };
       });
@@ -471,7 +474,8 @@ await check(
       const pays = tall.height / wide.width;
       const middle = (pays + 1) / 2; // halfway into the band
       const room = found.width * middle;
-      const height = Math.round(found.above + room + found.below);
+      // The screen that leaves the board exactly that much room.
+      const height = Math.round(room + found.below);
 
       const at = await open("#13n,d10j9d5j4c2b5b8", {
         viewport: { width: WIDTH, height },
