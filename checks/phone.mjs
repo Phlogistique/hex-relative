@@ -32,6 +32,20 @@ await check("On a phone", async ({ open }) => {
       scroll: document.documentElement.scrollWidth,
       client: document.documentElement.clientWidth,
       drawn: document.querySelector(".hex-board").dataset.orientation,
+      // How much of the width the drawing leaves unused. It keeps its shape
+      // inside the box, so where the height is what binds — which is the usual
+      // way round for an upright phone — this is the room a shorter chrome
+      // above the board would turn into board.
+      slack: (() => {
+        const svg = document.querySelector(".hex-board");
+        const box = svg.getBoundingClientRect();
+        const view = svg.viewBox.baseVal;
+        const scale = Math.min(
+          box.width / view.width,
+          box.height / view.height,
+        );
+        return Math.round(box.width - view.width * scale);
+      })(),
       // Centre to centre, which is the one measure of how big the board came
       // out that means the same thing whichever way up the hexagons are.
       cell: (() => {
@@ -55,6 +69,7 @@ await check("On a phone", async ({ open }) => {
     console.log(
       `  ${pad(label, 16)}board at ${pad(got.board, 5)} panel at ${pad(got.panel, 5)} of ${pad(got.height, 5)}` +
         `  ${pad(got.drawn, 5)} ${pad(`cell ${got.cell}px`, 12)}` +
+        `${pad(`${got.slack}px of width to spare`, 24)}` +
         `  ${got.scroll > got.client ? "OVERFLOWS" : "no sideways overflow"}`,
     );
     if (got.scroll > got.client) throw new Error(`${label} overflows sideways`);

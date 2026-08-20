@@ -146,6 +146,15 @@ enough phone the answer is that turning it would gain nothing — the chrome
 above the board eats half the screen — and it is left lying down. That is why
 `phone.mjs` prints which way each screen went instead of insisting.
 
+What that chrome costs is worth knowing, because it is not paid where it is
+spent. The turned board is narrower than the screen and taller than the room
+left for it, so its height is what binds and every pixel of chrome comes
+straight off the board, while the width sits unused: the heading wrapping onto
+a second line was costing a twelfth of the board on a phone held upright, which
+is why its size on a narrow screen is the largest that keeps it on one line.
+`phone.mjs` prints how much width the drawing leaves over, which is the room a
+shorter chrome would turn into board.
+
 **The goban is another drawing of the same board, not another board.**
 `style` picks between the two in `render()`; everything else — the cells, the
 history, the URL, the hit testing — is shared and untouched. The go-style
