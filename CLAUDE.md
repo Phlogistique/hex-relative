@@ -52,6 +52,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `phone.mjs` | three screen sizes: no sideways overflow, panel above the fold |
+| `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z |
 | `screenshots.mjs` | writes PNGs next to itself, for what only the eye can judge |
 
@@ -98,6 +99,61 @@ measuring in the browser rather than nudging a number:
   receding diagonally, which always passes closer than the flank alongside;
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
+
+**Turning the board upright is one rotation, applied to everything.** The
+rhombus comes out half again as wide as it is tall, which is the wrong way
+round for a phone, so where the room left for it is taller than it is wide the
+whole drawing is turned a twelfth of a turn clockwise. `turned()` is the whole
+of it: cell centres, the hexagons' own corners, the four outward normals of the
+wooden board, and the step each line of labels takes out of the board. Nothing
+else in `board.js` knows about it, and nothing outside `board.js` does at all.
+
+Three things are worth knowing before touching it:
+
+- **Why a twelfth, and why that way round.** A rhombus fills its own box
+  exactly when a pair of its sides stands square to the screen; anything else
+  spends board on the corners. Four turns do that, two of them leave the board
+  upright, and of those two this is the one that keeps `11` in the bottom left
+  corner with the red edge falling away from it to `11'` at the lowest point.
+  The prettier-looking sixth of a turn — the rhombus standing on its long
+  diagonal, a diamond — was tried first and thrown away: it wastes a quarter of
+  the box on the corners and draws a smaller board than this.
+- **The hexagons come round with it**, which is the one thing that is not free.
+  On their sides they reach 1 sideways and `HALF_WIDTH` up rather than the
+  other way about, so how far a hexagon reaches is the only fact in the file
+  that has to be stated twice — in `faces()`, for the labels, and in `render()`,
+  for the box the drawing is given. Their neighbours do not change: the polygon
+  turns as one, so edge k still faces `NEIGHBOURS[k]`.
+- **The text does not turn with it**, which is what the labels have to answer
+  for. A line of labels sits on the continuation of its own row or column, and
+  faces the outline: square on to the screen on the hexagons, whose outline is
+  a zigzag of points, and a real leaning edge on the wooden board. Clearance is
+  measured from the corner of the ink nearest that edge, which is the same as
+  the whole facing side of it where the two are parallel and is not where they
+  are not. That is one rule for four sides, two drawings and both ways round,
+  and it moved the goban's row labels out by an eighth of a cell — the gap they
+  were meant to have had all along, `checks/goban.mjs` having measured to the
+  anchor rather than to the nearest ink.
+
+**How much room the board has is measured, not assumed.** `app.js` compares the
+space left for the board with its own width and turns it if that pays, then
+caps its height at the room left above the Cell panel, which is where a tap's
+answer appears. Everything between the foot of the board and the foot of that
+panel is laid out already and does not depend on how tall the board is, so one
+measurement settles it; the stylesheet is asked whether the page is one column
+or two rather than the breakpoint being written down in two places. On a small
+enough phone the answer is that turning it would gain nothing — the chrome
+above the board eats half the screen — and it is left lying down. That is why
+`phone.mjs` prints which way each screen went instead of insisting.
+
+What that chrome costs is worth knowing, because it is not paid where it is
+spent. The turned board is narrower than the screen and taller than the room
+left for it, so its height is what binds and every pixel of chrome comes
+straight off the board, while the width sits unused: the heading wrapping onto
+a second line was costing a twelfth of the board on a phone held upright, which
+is why its size on a narrow screen is the largest that keeps it on one line.
+`phone.mjs` prints how much width the drawing leaves over, which is the room a
+shorter chrome would turn into board.
 
 **The goban is another drawing of the same board, not another board.**
 `style` picks between the two in `render()`; everything else — the cells, the

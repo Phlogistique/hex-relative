@@ -114,16 +114,39 @@ function measure() {
   const painted = +wood.getAttribute("stroke-width") / 2 / HALF_WIDTH;
   const flank = (y) => a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y) - painted;
 
+  // Half the digits' ink, worked out exactly as board.js does it, since
+  // trimming the em box by eye does not recover the same edge.
+  const inks = new Map();
+  const inkHalf = (label) => {
+    const style = getComputedStyle(label);
+    const key = `${style.fontWeight}/${style.fontSize}/${style.fontFamily}`;
+    if (!inks.has(key)) {
+      const context = document.createElement("canvas").getContext("2d");
+      context.font = `${style.fontWeight} 1000px ${style.fontFamily}`;
+      const ink = context.measureText("0123456789");
+      inks.set(
+        key,
+        ((ink.actualBoundingBoxAscent - ink.actualBoundingBoxDescent) / 2000) *
+          parseFloat(style.fontSize),
+      );
+    }
+    return inks.get(key);
+  };
+
   const rows = [...document.querySelectorAll('.labels text[data-side="left"]')]
     .filter((node) => node.dataset.line === "0")
-    .map((node, index) => ({
-      text: node.textContent,
+    .map((node) => {
       // text-anchor is "end" on this side, so x is the edge facing the board.
-      // The flank leans, so the sideways gap is longer than the real one.
-      gap:
-        (flank(centre(0, index).y) - Number(node.getAttribute("x"))) *
-        HALF_WIDTH,
-    }));
+      // This flank leans and the text does not, so the two are not parallel and
+      // the corner of the ink nearest the wood is what stands off it: the top
+      // one, the flank falling away to the right as it comes down. The sideways
+      // gap from there is longer than the real one, the flank leaning.
+      const top = Number(node.getAttribute("y")) - 2 * inkHalf(node);
+      return {
+        text: node.textContent,
+        gap: (flank(top) - Number(node.getAttribute("x"))) * HALF_WIDTH,
+      };
+    });
 
   const stars = [...document.querySelectorAll(".star")].map((dot) => {
     const row = Math.round(+dot.getAttribute("cy") / 1.5);

@@ -146,8 +146,12 @@ main {
   width: 100%;
   height: auto;
   /* Keep the whole board on screen rather than letting a wide rhombus run off
-     the bottom; the drawing centres itself in whatever box is left. */
-  max-height: 78vh;
+     the bottom; the drawing centres itself in whatever box is left.
+
+     A board standing on its long diagonal would run off the bottom of a phone
+     long before 78vh, so where it does the script measures the room actually
+     left under it — the Cell panel keeping its own place — and says so here. */
+  max-height: var(--board-room, 78vh);
   touch-action: manipulation;
   /* Stops a long press on a cell from raising iOS's selection callout, which
      would otherwise fight with the erase gesture. */
@@ -663,8 +667,17 @@ body[data-dual] .status-blue {
     padding: 0.75rem 0.5rem 2.5rem;
   }
 
+  /* The heading is the only thing on the page long enough to wrap, and each
+     line it takes is a row of the board: at 1.2rem it runs onto a second line
+     from about 400px down, which costs the board a twelfth of its height on a
+     phone held upright. It wants a shade over 20em to sit on one line, and it
+     has the screen less than the body's own padding, so this is as large as it
+     can be and still fit — measured, since where it wraps depends on the font
+     the phone lends it. Wrapping is only a waste, never a fault: below about
+     330px it wraps whatever is asked for here, and there the board is as wide
+     as the screen anyway and the room would go unused. */
   .masthead h1 {
-    font-size: 1.2rem;
+    font-size: min(1.2rem, 4.6vw);
   }
 
   .hide-narrow {
