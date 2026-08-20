@@ -4,6 +4,11 @@
  * Pointy-top hexagons laid out in a rhombus, in the orientation HexWiki uses:
  * red joins the top and bottom edges, blue joins the left and right ones, and
  * the bottom red edge is the one we take our bearings from.
+ *
+ * That rhombus comes out half again as wide as it is tall, which is the wrong
+ * way round for a phone. `orientation: "tall"` turns the whole drawing a
+ * twelfth of a turn, which stands the columns upright and puts the same board
+ * in the same box on its end; see turned().
  */
 import { column, distances } from "./mason.js";
 
@@ -30,6 +35,29 @@ const NEIGHBOURS = [
   [0, 1], // lower right
   [1, 0], // right
 ];
+
+/**
+ * A twelfth of a turn clockwise, which is the whole of the tall orientation.
+ *
+ * The rhombus has two sides running along the rows and two along the columns,
+ * sixty degrees apart, and it fills its own box exactly when one of those
+ * pairs stands square to the screen. Four turns do that; two of them leave the
+ * board upright; and of those two this is the one that keeps 11 in the bottom
+ * left corner, with the red edge falling away from it to 11' at the lowest
+ * point of all. The columns come upright, the rows lean down to the right, and
+ * the board's box is the wide one's stood on its end: no board is given away
+ * for the turn, which is what the other, prettier quarter-turn of the rhombus
+ * onto its long diagonal costs.
+ *
+ * The hexagons come round with it and stand on their sides, points left and
+ * right rather than up and down. Everything else is a rotation and nothing
+ * else — the same cells, the same neighbours, the same names — so the only
+ * thing that has to be said twice in this file is how far a hexagon reaches,
+ * which is the other way about once it is on its side.
+ */
+function turned(p) {
+  return { x: p.x * HALF_WIDTH - p.y / 2, y: p.x / 2 + p.y * HALF_WIDTH };
+}
 
 // Every label keeps the same clear space from the board's outline, and the
 // second line of labels the same clear space from the first. Where they
@@ -70,6 +98,7 @@ export class HexBoard {
     this.size = options.size ?? 13;
     this.labels = options.labels ?? "relative"; // "relative" | "standard" | "none"
     this.style = options.style ?? "hex"; // "hex" | "goban"
+    this.orientation = options.orientation ?? "wide"; // "wide" | "tall"
     this.showNumbers = options.showNumbers ?? true;
     this.onHover = options.onHover ?? (() => {});
     this.onSelect = options.onSelect ?? (() => {});
@@ -77,11 +106,31 @@ export class HexBoard {
     this.cursor = 0; // how many of them are on the board right now
     this.marked = null;
     this.cells = new Map(); // "col,row" -> {hex, stone, label}
+    /** A point of the drawing, turned if the board is standing up. Bound, so
+        that the outline helpers can be handed it. */
+    this.turn = (point) =>
+      this.orientation === "tall" ? turned(point) : point;
     this.render();
   }
 
   key(col, row) {
     return `${col},${row}`;
+  }
+
+  /** Where a cell sits, whichever way the board is turned. */
+  at(col, row) {
+    return this.turn(center(col, row));
+  }
+
+  /**
+   * A hexagon's corners, turned with the board. The polygon turns as one, so
+   * edge k still faces NEIGHBOURS[k] whichever way round it is.
+   */
+  vertices() {
+    return VERTICES.map(([x, y]) => {
+      const { x: vx, y: vy } = this.turn({ x, y });
+      return [vx, vy];
+    });
   }
 
   /**
@@ -236,6 +285,17 @@ export class HexBoard {
     this.render();
   }
 
+  /**
+   * Which way the rhombus lies. Redrawn only when it actually changes, since
+   * the caller works this out from the room on screen and so asks on every
+   * resize.
+   */
+  setOrientation(mode) {
+    if (mode === this.orientation) return;
+    this.orientation = mode;
+    this.render();
+  }
+
   setShowNumbers(on) {
     this.showNumbers = on;
     this.paint();
@@ -251,15 +311,24 @@ export class HexBoard {
     const { size } = this;
     const last = size - 1;
     const dual = this.style !== "hex";
-    // The board itself, outside edge of the border included.
+    const hexagon = this.vertices();
+    // The board itself, outside edge of the border included: the corners of
+    // the rhombus of centres, grown by however far a hexagon reaches each way
+    // — which is not the same each way, and swaps over when the board turns.
+    const corners = [
+      [0, 0],
+      [last, 0],
+      [last, last],
+      [0, last],
+    ].map(([col, row]) => this.at(col, row));
+    const reach = (pick) => Math.max(...hexagon.map((v) => Math.abs(pick(v))));
     const board = dual
-      ? boxOf(outline(size, WOOD))
-      : {
-          minX: -HALF_WIDTH - BORDER_WIDTH,
-          maxX: Math.sqrt(3) * (last + last / 2) + HALF_WIDTH + BORDER_WIDTH,
-          minY: -1 - BORDER_WIDTH,
-          maxY: 1.5 * last + 1 + BORDER_WIDTH,
-        };
+      ? boxOf(outline(size, WOOD, this.turn))
+      : stretch(
+          boxOf(corners),
+          reach((v) => v[0]) + BORDER_WIDTH,
+          reach((v) => v[1]) + BORDER_WIDTH,
+        );
 
     const svg = document.createElementNS(SVG_NS, "svg");
     setViewBox(svg, board);
@@ -269,6 +338,7 @@ export class HexBoard {
       "class",
       `hex-board style-${this.style}${dual ? " dual" : ""}`,
     );
+    svg.dataset.orientation = this.orientation;
     svg.setAttribute("role", "grid");
     svg.setAttribute("aria-label", `Hex board, ${size} by ${size}`);
 
@@ -285,13 +355,14 @@ export class HexBoard {
     }
 
     this.cells = new Map();
+    const points = hexagon.map(([x, y]) => `${x},${y}`).join(" ");
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
-        cellLayer.appendChild(this.buildCell(col, row));
+        cellLayer.appendChild(this.buildCell(col, row, points));
       }
     }
     if (dual) this.buildBands(edgeLayer);
-    else this.buildEdges(edgeLayer);
+    else this.buildEdges(edgeLayer, hexagon);
     const labels = this.buildLabels(labelLayer);
 
     this.svg = svg;
@@ -302,17 +373,14 @@ export class HexBoard {
     this.paint();
   }
 
-  buildCell(col, row) {
-    const { x, y } = center(col, row);
+  buildCell(col, row, points) {
+    const { x, y } = this.at(col, row);
     const g = document.createElementNS(SVG_NS, "g");
     g.setAttribute("class", "cell");
     g.setAttribute("transform", `translate(${x} ${y})`);
 
     const hex = document.createElementNS(SVG_NS, "polygon");
-    hex.setAttribute(
-      "points",
-      VERTICES.map(([vx, vy]) => `${vx},${vy}`).join(" "),
-    );
+    hex.setAttribute("points", points);
     hex.setAttribute("class", "hex");
     g.appendChild(hex);
 
@@ -341,17 +409,17 @@ export class HexBoard {
   }
 
   /** Thick coloured borders: every hex edge with no neighbour behind it. */
-  buildEdges(layer) {
+  buildEdges(layer, hexagon) {
     const { size } = this;
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
-        const { x, y } = center(col, row);
+        const { x, y } = this.at(col, row);
         for (let k = 0; k < 6; k++) {
           const [dc, dr] = NEIGHBOURS[k];
           const side = outsideSide(col + dc, row + dr, size);
           if (!side) continue;
-          const [ax, ay] = VERTICES[k];
-          const [bx, by] = VERTICES[(k + 1) % 6];
+          const [ax, ay] = hexagon[k];
+          const [bx, by] = hexagon[(k + 1) % 6];
           // Shift the segment out along its own normal by half the stroke, so
           // the whole width of it lies beyond the cell.
           const mx = (ax + bx) / 2;
@@ -377,7 +445,10 @@ export class HexBoard {
    */
   buildWood(layer) {
     const wood = document.createElementNS(SVG_NS, "polygon");
-    wood.setAttribute("points", pointsOf(outline(this.size, WOOD - BEVEL / 2)));
+    wood.setAttribute(
+      "points",
+      pointsOf(outline(this.size, WOOD - BEVEL / 2, this.turn)),
+    );
     wood.setAttribute("stroke-width", BEVEL);
     wood.setAttribute("class", "wood");
     layer.appendChild(wood);
@@ -402,8 +473,8 @@ export class HexBoard {
       layer.appendChild(line);
     };
     for (let i = 0; i < size; i++) {
-      draw(center(0, i), center(last, i)); // a row, running flat
-      draw(center(i, 0), center(i, last)); // a column, running down the slant
+      draw(this.at(0, i), this.at(last, i)); // a row
+      draw(this.at(i, 0), this.at(i, last)); // a column
     }
     // The third family is where col + row is constant. Its two ends are the
     // acute corners of the board, where the line is a single point and there
@@ -411,7 +482,7 @@ export class HexBoard {
     for (let k = 1; k < 2 * last; k++) {
       const lo = Math.max(0, k - last);
       const hi = Math.min(last, k);
-      draw(center(lo, k - lo), center(hi, k - hi));
+      draw(this.at(lo, k - lo), this.at(hi, k - hi));
     }
   }
 
@@ -432,7 +503,7 @@ export class HexBoard {
     if (size >= 5 && size % 2) at.add(this.key((size - 1) / 2, (size - 1) / 2));
     for (const cell of at) {
       const [col, row] = cell.split(",").map(Number);
-      const { x, y } = center(col, row);
+      const { x, y } = this.at(col, row);
       const dot = document.createElementNS(SVG_NS, "circle");
       dot.setAttribute("cx", x);
       dot.setAttribute("cy", y);
@@ -451,7 +522,7 @@ export class HexBoard {
   buildBands(layer) {
     const inner = BAND - BORDER_WIDTH / 2;
     const outer = BAND + BORDER_WIDTH / 2;
-    for (const s of sides(this.size)) {
+    for (const s of sides(this.size, this.turn)) {
       const band = document.createElementNS(SVG_NS, "polygon");
       band.setAttribute(
         "points",
@@ -517,68 +588,40 @@ export class HexBoard {
   }
 
   /**
-   * Create the labels without placing them: their positions depend on how wide
-   * they turn out to be, which is only knowable once they are rendered.
-   */
-  buildLabels(layer) {
-    if (this.labels === "none") return [];
-    const { size } = this;
-    const relative = this.labels === "relative";
-    const out = [];
-    const add = (side, line, index, content, className) => {
-      const node = text(layer, content, className);
-      node.dataset.side = side;
-      node.dataset.line = line;
-      out.push({ node, side, line, index });
-    };
-
-    for (let col = 0; col < size; col++) {
-      if (!relative) {
-        const letter = column(col);
-        add("top", 0, col, letter, "axis");
-        add("bottom", 0, col, letter, "axis");
-        continue;
-      }
-      // Every column has two names, one per blue edge. The nearer-edge one
-      // goes against the board, the other outside it, quieter.
-      const d = distances(col, 0, size);
-      const { inner, outer } = scalePair(d.blue, d.bluePrime);
-      add("top", 0, col, inner, "axis-blue");
-      add("top", 1, col, outer, "axis-blue axis-alt");
-      add("bottom", 0, col, inner, "axis-blue");
-      add("bottom", 1, col, outer, "axis-blue axis-alt");
-    }
-
-    for (let row = 0; row < size; row++) {
-      if (!relative) {
-        add("left", 0, row, `${row + 1}`, "axis");
-        add("right", 0, row, `${row + 1}`, "axis");
-        continue;
-      }
-      const d = distances(0, row, size);
-      const { inner, outer } = scalePair(d.red, d.redPrime);
-      add("left", 0, row, inner, "axis-red");
-      add("left", 1, row, outer, "axis-red axis-alt");
-      add("right", 0, row, inner, "axis-red");
-      add("right", 1, row, outer, "axis-red axis-alt");
-    }
-    return out;
-  }
-
-  /**
-   * How far the drawing reaches past the outermost cell centres: out to the
-   * side of the board a row label faces, and out to the top or bottom a column
-   * label faces. Both are measured square on to the edge in question.
+   * What each of the four lines of labels is placed against: the edge that
+   * side's labels face, as its outward normal and how far past the outermost
+   * cell centres it stands, and the step out of the board the line follows.
    *
-   * A row label is then placed by stepping sideways, and `slant` is what that
-   * step has to be multiplied by to cover the distance. A hexagon's flank is
-   * vertical, so sideways is already square on and the factor is 1; the wooden
-   * board's flank leans, so the same clearance costs a longer step.
+   * Neither of the two is what the other suggests. A line of labels sits on
+   * the continuation of its own row or column, so its step is that row's or
+   * that column's own direction, sloping or not. What it faces is the outline:
+   * on the hexagons that is how far the outermost cells reach, measured square
+   * on to the screen, the outline being a zigzag whose points are what a label
+   * has to clear; on the wooden board it is a real edge, which leans as the
+   * board does. What a step buys in clearance is then the one projected on the
+   * other, and both are already turned.
    */
-  reach() {
-    return this.style === "hex"
-      ? { flank: HALF_WIDTH + BORDER_WIDTH, end: 1 + BORDER_WIDTH, slant: 1 }
-      : { flank: WOOD, end: WOOD, slant: 1 / HALF_WIDTH };
+  faces() {
+    const hex = this.style === "hex";
+    const tall = this.orientation === "tall";
+    // A pointy-top hexagon reaches HALF_WIDTH sideways and 1 up and down; the
+    // turn stands it on its side and it reaches the other way about.
+    const flank = {
+      normal: hex ? { x: 1, y: 0 } : this.turn({ x: HALF_WIDTH, y: -0.5 }),
+      out: hex ? (tall ? 1 : HALF_WIDTH) + BORDER_WIDTH : WOOD,
+    };
+    const end = {
+      normal: hex ? { x: 0, y: -1 } : this.turn({ x: 0, y: -1 }),
+      out: hex ? (tall ? HALF_WIDTH : 1) + BORDER_WIDTH : WOOD,
+    };
+    const row = this.turn({ x: 1, y: 0 }); // along a row, to the right
+    const column = this.turn({ x: SLANT, y: 1 }); // down a column
+    return {
+      left: { ...flank, normal: back(flank.normal), step: back(row) },
+      right: { ...flank, step: row },
+      top: { ...end, step: back(column) },
+      bottom: { ...end, normal: back(end.normal), step: column },
+    };
   }
 
   /**
@@ -592,9 +635,15 @@ export class HexBoard {
    * always comes nearer than the edge alongside. Holding that at arm's length
    * pushes the numbers out from the board for no reason the eye can see.
    *
-   * Row labels are anchored by the edge facing the board, so that a wide "13'"
-   * and a bare "7" stand off alike. Column labels stay centred, their
-   * clearance being vertical.
+   * It is measured from the corner of the label's ink nearest that edge, and
+   * the label is anchored by the side facing it, so that a wide "13'" and a
+   * bare "7" stand off alike. Where the edge is above or below rather than
+   * beside, there is no side facing it and the text is centred instead.
+   *
+   * Text stays upright whichever way the board is turned, so on a turned board
+   * every edge leans away from its labels and the nearest corner is no longer
+   * the whole facing side of the box. That is the only thing the turn changes
+   * here: the ink's half-height, counted against the lean of the edge.
    */
   layoutLabels(labels, board) {
     const bounds = { ...board };
@@ -605,40 +654,48 @@ export class HexBoard {
       l.ink = inkHalf(l.node);
     }
     const last = this.size - 1;
-    const reach = this.reach();
+    const faces = this.faces();
     const pick = (side, line) =>
       labels.filter((l) => l.side === side && l.line === line);
-
-    const placers = {
-      left: (l, d) => spot(center(0, l.index), -d, 0, l, "end"),
-      right: (l, d) => spot(center(last, l.index), d, 0, l, "start"),
-      // Along the continuation of the column, so the line of labels runs
-      // parallel to the sloping sides of the rhombus.
-      top: (l, d) => spot(center(l.index, 0), -d * SLANT, -d, l, "middle"),
-      bottom: (l, d) => spot(center(l.index, last), d * SLANT, d, l, "middle"),
+    // The cell each label is placed against: the near end of its own row or
+    // column, so that a line of labels runs parallel to the side it names.
+    const against = {
+      left: (index) => [0, index],
+      right: (index) => [last, index],
+      top: (index) => [index, 0],
+      bottom: (index) => [index, last],
     };
 
     for (const side of ["left", "right", "top", "bottom"]) {
       const inner = pick(side, 0);
       if (!inner.length) continue;
-      const place = placers[side];
-      const sideways = side === "left" || side === "right";
+      const face = faces[side];
+      const { normal, step } = face;
+      const per = step.x * normal.x + step.y * normal.y; // clearance per step
+      const anchor =
+        normal.x < -1e-9 ? "end" : normal.x > 1e-9 ? "start" : "middle";
+      const place = (l, d) => {
+        const [col, row] = against[side](l.index);
+        return spot(this.at(col, row), step.x * d, step.y * d, l, anchor);
+      };
 
-      // To the edge of the text for a row, to the edge of the ink for a column.
-      const d = sideways
-        ? (reach.flank + GAP) * reach.slant
-        : reach.end + GAP + inner[0].ink;
+      const d = (face.out + GAP + inner[0].ink * Math.abs(normal.y)) / per;
       for (const l of inner) apply(l, place(l, d), bounds);
 
       const outer = pick(side, 1);
       if (!outer.length) continue;
-      const step = sideways
-        ? Math.max(...inner.map((l) => l.width)) + LINE_GAP
-        : inner[0].ink + outer[0].ink + LINE_GAP;
-      for (const l of outer) apply(l, place(l, d + step), bounds);
+      // The second line gets past the first the cheap way: round its ends
+      // where the step runs sideways, over its top where the step climbs.
+      const clear =
+        Math.abs(step.y) >= Math.abs(step.x)
+          ? (inner[0].ink + outer[0].ink + LINE_GAP) / Math.abs(step.y)
+          : (Math.max(...inner.map((l) => l.width)) + LINE_GAP) /
+            Math.abs(step.x);
+      for (const l of outer) apply(l, place(l, d + clear), bounds);
     }
     return grow(bounds, PAD);
   }
+
   /** Repaint stones, move numbers and highlights without rebuilding the SVG. */
   paint() {
     for (const { hex, stone, label } of this.cells.values()) {
@@ -769,14 +826,19 @@ function inkHalf(node) {
   return inkHeights.get(key);
 }
 
-function grow(bounds, by) {
+function stretch(box, x, y) {
   return {
-    minX: bounds.minX - by,
-    maxX: bounds.maxX + by,
-    minY: bounds.minY - by,
-    maxY: bounds.maxY + by,
+    minX: box.minX - x,
+    maxX: box.maxX + x,
+    minY: box.minY - y,
+    maxY: box.maxY + y,
   };
 }
+
+const grow = (box, by) => stretch(box, by, by);
+
+/** The other way round. */
+const back = (v) => ({ x: -v.x, y: -v.y });
 
 function setViewBox(svg, b) {
   svg.setAttribute(
@@ -807,23 +869,25 @@ function outsideSide(col, row, size) {
 
 /**
  * The four sides of the rhombus the cell centres describe, going round from
- * the top, each with its own outward unit normal and its neighbours'. The edge
- * a side belongs to is named as outsideSide() names it.
+ * the red' one, each with its own outward unit normal and its neighbours'. The
+ * edge a side belongs to is named as outsideSide() names it. `turn` is how the
+ * board is standing: it moves the corners and the normals alike, so the four
+ * come back in the same order, pointing the same way relative to the board.
  */
-function sides(size) {
+function sides(size, turn = (p) => p) {
   const last = size - 1;
   const corners = [
     center(0, 0),
     center(last, 0),
     center(last, last),
     center(0, last),
-  ];
+  ].map(turn);
   const normals = [
-    [0, -1], // top
-    [HALF_WIDTH, -0.5], // right
-    [0, 1], // bottom
-    [-HALF_WIDTH, 0.5], // left
-  ];
+    { x: 0, y: -1 }, // top
+    { x: HALF_WIDTH, y: -0.5 }, // right
+    { x: 0, y: 1 }, // bottom
+    { x: -HALF_WIDTH, y: 0.5 }, // left
+  ].map(turn);
   const edges = ["redp", "bluep", "red", "blue"];
   return normals.map((normal, k) => ({
     a: corners[k],
@@ -841,13 +905,13 @@ function sides(size) {
  * both normals at once and so lies on the corner's bisector.
  */
 function pushed(point, n1, n2, d) {
-  const k = d / (1 + n1[0] * n2[0] + n1[1] * n2[1]);
-  return { x: point.x + k * (n1[0] + n2[0]), y: point.y + k * (n1[1] + n2[1]) };
+  const k = d / (1 + n1.x * n2.x + n1.y * n2.y);
+  return { x: point.x + k * (n1.x + n2.x), y: point.y + k * (n1.y + n2.y) };
 }
 
 /** The rhombus of cell centres, grown `d` outwards on every side. */
-function outline(size, d) {
-  return sides(size).map((s) => pushed(s.a, s.before, s.normal, d));
+function outline(size, d, turn) {
+  return sides(size, turn).map((s) => pushed(s.a, s.before, s.normal, d));
 }
 
 const pointsOf = (points) => points.map((p) => `${p.x},${p.y}`).join(" ");

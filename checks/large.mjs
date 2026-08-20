@@ -22,10 +22,13 @@ const measure = () => {
   const svg = document.querySelector(".hex-board");
   const box = svg.getBoundingClientRect();
   const viewBox = svg.getAttribute("viewBox").split(" ").map(Number);
-  const scale = box.width / viewBox[2];
+  // The drawing keeps its shape inside whatever box is left, so on a screen
+  // that caps its height it is the height that says how big a cell came out.
+  const scale = Math.min(box.width / viewBox[2], box.height / viewBox[3]);
   const root = document.documentElement;
   return {
     cells: document.querySelectorAll(".cells .cell").length,
+    orientation: svg.dataset.orientation,
     width: Math.round(box.width),
     height: Math.round(box.height),
     cell: Math.round(Math.sqrt(3) * scale * 10) / 10,
@@ -97,7 +100,7 @@ await check("The largest board", async ({ open }) => {
   });
   const small = await phone.evaluate(measure);
   console.log(
-    `  ${pad("phone", 8)}${small.width}x${small.height}   cell ${small.cell}px   ` +
+    `  ${pad("phone", 8)}${small.width}x${small.height} ${small.orientation}   cell ${small.cell}px   ` +
       (small.overflows ? "OVERFLOWS" : "no sideways overflow"),
   );
   if (small.overflows) throw new Error("the phone page overflows sideways");
