@@ -42,7 +42,7 @@ worth reading as much as running.
 |---|---|
 | `labels.mjs` | every coordinate label stands exactly `GAP` off the edge it faces |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
-| `placing.mjs` | what a click does in each placing mode, occupied cell or not |
+| `placing.mjs` | what a click does in each placing mode, and after a typed size |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -89,6 +89,16 @@ measuring in the browser rather than nudging a number:
   receding diagonally, which always passes closer than the flank alongside;
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
+
+**A rebuild under a press eats the click.** The size box only reports a typed
+value when it loses focus, and what takes the focus off it is the press that
+begins the next click on a cell. Rebuilding the board there leaves the click
+with nothing to land on — a press is hit-tested before any handler runs, so
+redrawing at `pointerdown`, even in the capture phase, is already too late.
+`app.js` takes the size as a mouse arrives over the board instead, and holds
+one that turns up mid-press until the press is over, which is all a finger can
+be given. Both are in `checks/placing.mjs`; the same trap is waiting for
+anything else that rebuilds the board from an event the pointer causes.
 
 **The page carries no explanatory prose.** Everything is in `title` tooltips —
 the heading, each control, the board, each of the four names in the Cell panel.
