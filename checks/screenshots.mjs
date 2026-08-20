@@ -51,12 +51,25 @@ await check("Screenshots", async ({ open }) => {
   await won.screenshot({ path: here("page-goban.png") });
   console.log("  page-goban.png");
 
-  const phone = await open("#13n,d10j9d5j4c2b5b8", {
-    viewport: { width: 390, height: 844 },
-    isMobile: true,
-    hasTouch: true,
-    deviceScaleFactor: 2,
-  });
-  await phone.screenshot({ path: here("phone.png"), fullPage: true });
-  console.log("  phone.png");
+  // Upright, where the rhombus is turned to stand on its long diagonal: the
+  // labels are the thing to look at, every one of them now standing off an
+  // edge that leans, in two lines that run diagonally away from the board.
+  for (const [name, style] of [
+    ["phone.png", "hex"],
+    ["phone-goban.png", "goban"],
+  ]) {
+    const phone = await open("#13n,d10j9d5j4c2b5b8", {
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+    });
+    if (style !== "hex") {
+      await phone.selectOption("#style", style);
+      await phone.waitForTimeout(150);
+    }
+    await phone.screenshot({ path: here(name), fullPage: true });
+    console.log(`  ${name}`);
+    await phone.close();
+  }
 });

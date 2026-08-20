@@ -146,8 +146,12 @@ main {
   width: 100%;
   height: auto;
   /* Keep the whole board on screen rather than letting a wide rhombus run off
-     the bottom; the drawing centres itself in whatever box is left. */
-  max-height: 78vh;
+     the bottom; the drawing centres itself in whatever box is left.
+
+     A board standing on its long diagonal would run off the bottom of a phone
+     long before 78vh, so where it does the script measures the room actually
+     left under it — the Cell panel keeping its own place — and says so here. */
+  max-height: var(--board-room, 78vh);
   touch-action: manipulation;
   /* Stops a long press on a cell from raising iOS's selection callout, which
      would otherwise fight with the erase gesture. */

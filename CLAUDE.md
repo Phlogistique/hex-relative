@@ -52,6 +52,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `phone.mjs` | three screen sizes: no sideways overflow, panel above the fold |
+| `turned.mjs` | the board stood on its long diagonal: same cells, taps still land, bigger, labels still clear |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z |
 | `screenshots.mjs` | writes PNGs next to itself, for what only the eye can judge |
 
@@ -98,6 +99,44 @@ measuring in the browser rather than nudging a number:
   receding diagonally, which always passes closer than the flank alongside;
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
+
+**Standing the board up is a relabelling, not a second drawing.** The rhombus
+lies on its long diagonal and comes out half again as wide as it is tall, which
+is the wrong way round for a phone, so where the room left for it is taller
+than it is wide it is turned a sixth of a turn. That particular sixth is what
+makes it cheap: a hexagon is its own sixth-turn, so the tiling maps onto
+itself, the cells keep their shapes and their neighbours, and the whole of the
+turn is `turned()` applied to the cell centres, to the four outward normals,
+and to the step each line of labels takes out of the board. `NEIGHBOURS` slides
+round by one, edge k of a hexagon being what edge k+1 was. Nothing else in
+`board.js` knows about it, and nothing outside `board.js` does at all.
+
+Two things are worth knowing before touching it:
+
+- **Which way round.** Clockwise, so that `11` keeps the bottom left corner and
+  the red edge falls away from it to `11'` at the lowest point of all. The
+  other sixth would put `11'` at the top and stand the board on the wrong
+  corner.
+- **The text does not turn with it**, which is the one thing the turn really
+  disturbs. Lying down, a row's labels face a vertical flank and a column's
+  face a level row of points, so a line of upright text is parallel to the edge
+  it stands off and the whole facing side of it is at `GAP`. Turned, every edge
+  leans and only a corner of the ink is nearest, so clearance is now measured
+  from that corner — `layoutLabels` adds the ink's half-height counted against
+  the lean of the edge. That is one rule for four sides, two styles and two
+  ways round, and it moved the goban's row labels out by an eighth of a cell,
+  which is the gap they were meant to have had all along.
+
+**How much room the board has is measured, not assumed.** `app.js` compares the
+space left for the board with its own width and turns it if that pays, then
+caps its height at the room left above the Cell panel, which is where a tap's
+answer appears. Everything between the foot of the board and the foot of that
+panel is laid out already and does not depend on how tall the board is, so one
+measurement settles it; the stylesheet is asked whether the page is one column
+or two rather than the breakpoint being written down in two places. On a small
+enough phone the answer is that turning it would gain nothing — the chrome
+above the board eats half the screen — and it is left lying down. That is why
+`phone.mjs` prints which way each screen went instead of insisting.
 
 **The goban is another drawing of the same board, not another board.**
 `style` picks between the two in `render()`; everything else — the cells, the

@@ -33,6 +33,8 @@ const ui = {
   status: el("status"),
 };
 
+const main = document.querySelector("main");
+
 const board = new HexBoard(ui.board, {
   size: DEFAULT_SIZE,
   labels: "relative",
@@ -83,11 +85,19 @@ function refresh() {
   renderStatus();
   showReadout(lastTouched);
   writeHash();
+  // Last, because how much room is left for the board depends on how much of
+  // the panel under it has to stay in sight.
+  fitBoard();
 }
 
 function showReadout(cell) {
   if (!cell || cell.col >= board.size || cell.row >= board.size) {
-    ui.readout.innerHTML = `<p class="placeholder">—</p>`;
+    // Holding the answer's own line, rather than a shorter one: on a phone the
+    // board is given the room this panel does not need, and a panel that grows
+    // when tapped would take it back from under the board it was tapped on.
+    ui.readout.innerHTML = `<div class="readout-main">
+      <span class="coord placeholder">—</span>
+    </div>`;
     return;
   }
   const { col, row } = cell;
@@ -181,7 +191,62 @@ function setStyle(mode) {
   // stylesheet leaves a rule to forget every time another is added.
   document.body.toggleAttribute("data-dual", mode !== "hex");
   board.setStyle(mode);
+  fitBoard();
   renderStatus();
+}
+
+// --- how much room the board has ------------------------------------------
+
+/**
+ * Which way round to draw the board, and how tall it may be.
+ *
+ * The two drawings are the same rhombus lying down and standing up, so their
+ * shapes are each other's reciprocal: three to two against two to three. Which
+ * of them to use is therefore not a question about the device but about the
+ * space left for the board — whichever way that space leans, one of them fills
+ * it and the other wastes most of it — so it is measured rather than asked.
+ *
+ * Nothing changes unless the board actually stands up: the cap is the
+ * stylesheet's own until then.
+ */
+function fitBoard() {
+  const svg = ui.board.querySelector("svg");
+  if (!svg) return;
+  ui.board.style.removeProperty("--board-room");
+  const width = svg.getBoundingClientRect().width;
+  const room = roomForBoard(svg);
+  if (room > width) {
+    ui.board.style.setProperty("--board-room", `${room}px`);
+    board.setOrientation("tall");
+  } else {
+    board.setOrientation("wide");
+  }
+}
+
+/**
+ * How tall the board may be. Beside the Cell panel that is whatever the
+ * stylesheet allows; under it — which is where a phone puts it — the board may
+ * have the rest of the screen but not the panel's own place on it, since the
+ * panel is where a tap's answer appears and a tap that scrolls its own answer
+ * out of sight is no use.
+ *
+ * Everything between the foot of the board and the foot of the panel is laid
+ * out already and does not depend on how tall the board is, so measuring it
+ * settles the cap in one go. The stylesheet is asked whether the page is one
+ * column or two, rather than the breakpoint being written down here as well.
+ */
+function roomForBoard(svg) {
+  // `none`, should the stylesheet ever stop capping it, is no cap at all.
+  const cap = parseFloat(getComputedStyle(svg).maxHeight) || Infinity;
+  // The answer itself, rather than the whole panel: the other names of the
+  // cell sit under it and can wait for a scroll. It is also the one part whose
+  // height does not depend on what has been tapped, so the board keeps still.
+  const answer = document.querySelector(".side .card .readout-main");
+  const columns = getComputedStyle(main).gridTemplateColumns.split(" ").length;
+  if (columns > 1 || !answer) return cap;
+  const box = svg.getBoundingClientRect();
+  const below = answer.getBoundingClientRect().bottom - box.bottom;
+  return Math.min(cap, innerHeight - (box.top + scrollY) - below);
 }
 
 function setSize(size) {
@@ -314,6 +379,15 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   board[method]();
   refresh();
+});
+
+// The room left for the board changes with the window, and on a phone with
+// the address bar sliding in and out, so this runs often; it is a measurement
+// and two style reads unless the answer has actually changed.
+let fitting = null;
+window.addEventListener("resize", () => {
+  cancelAnimationFrame(fitting);
+  fitting = requestAnimationFrame(fitBoard);
 });
 
 window.addEventListener("hashchange", () => open(location.hash));

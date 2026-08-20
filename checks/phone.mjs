@@ -1,7 +1,13 @@
 /**
- * The page on a phone. The board is a wide rhombus and the screen is narrow,
- * so what matters is that nothing overflows sideways and that the Cell panel —
+ * The page on a phone. The screen is narrow and the board wants to be big, so
+ * what matters is that nothing overflows sideways and that the Cell panel —
  * where a tap's answer appears — is on screen without scrolling.
+ *
+ * Those two are what the board is measured against before it is drawn: where
+ * standing the rhombus on its long diagonal pays, it is stood up and given the
+ * room left above the panel, and where it does not, nothing changes. Which way
+ * each of these screens went is printed; checks/turned.mjs is where the turn
+ * itself is held down.
  *
  * Touch has no hover, so the `nothing (just name cells)` mode is the only way
  * to name a cell without disturbing the position; that is checked here too.
@@ -25,6 +31,10 @@ await check("On a phone", async ({ open }) => {
     const got = await page.evaluate(() => ({
       scroll: document.documentElement.scrollWidth,
       client: document.documentElement.clientWidth,
+      drawn: document.querySelector(".hex-board").dataset.orientation,
+      cell: Math.round(
+        document.querySelector(".cells .hex").getBoundingClientRect().width,
+      ),
       board: Math.round(
         document.querySelector(".board").getBoundingClientRect().top,
       ),
@@ -35,6 +45,7 @@ await check("On a phone", async ({ open }) => {
     }));
     console.log(
       `  ${pad(label, 16)}board at ${pad(got.board, 5)} panel at ${pad(got.panel, 5)} of ${pad(got.height, 5)}` +
+        `  ${pad(got.drawn, 5)} ${pad(`cell ${got.cell}px`, 12)}` +
         `  ${got.scroll > got.client ? "OVERFLOWS" : "no sideways overflow"}`,
     );
     if (got.scroll > got.client) throw new Error(`${label} overflows sideways`);

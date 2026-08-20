@@ -52,6 +52,14 @@ one measured from the nearer edge, running 1 up to about half the board and back
 it, smaller and fainter, the one measured from the far edge. Each label line follows the slant of
 the rhombus, sitting on the continuation of its own column.
 
+Where the room left for the board is taller than it is wide — a phone held upright — the board is
+turned a sixth of a turn and stands on its long diagonal instead of lying on it, which is worth
+about half again as much board on the same screen. It is the same drawing and not a second one: a
+hexagon is its own sixth-turn, so the cells keep their shapes, their neighbours and their names, and
+`11` keeps the bottom left corner with the red edge falling away from it to `11'` at the lowest
+point of all. Which way round it is drawn follows from measuring that room, the Cell panel keeping
+its own place under the board, so a wide window is left exactly as it was.
+
 Tap or click to place a stone and again to take it off; shift-click or long-press erases. The
 `nothing (just name cells)` mode reads the board without changing it, which is how you name cells on
 a touch screen, where there is no hover. Step through the game with the arrow buttons, `Home`, the
@@ -93,12 +101,12 @@ its own (`#9:ra1,rb1`) is still read, so links shared before are not broken.
 | file | contents |
 |---|---|
 | `mason.js` | the coordinate system: `relative`, `variants`, `format`, `parse`, `distances` — no DOM |
-| `board.js` | the SVG board: geometry, edge borders, labels, win detection, the goban drawing |
+| `board.js` | the SVG board: geometry, edge borders, labels, win detection, the goban drawing, the turn |
 | `url.js` | the URL fragment: hexworld's format, read and written — no DOM |
 | `app.js` | UI wiring: toolbar, readout, stone list, history |
 | `mason.test.mjs` | checks against every worked example on the wiki page |
 | `url.test.mjs` | checks the fragment against hexworld's format |
-| `checks/` | browser checks: layout, clicking, history, phones, the goban, the largest board — see `CLAUDE.md` |
+| `checks/` | browser checks: layout, clicking, history, phones, the goban, the turned board, the largest board — see `CLAUDE.md` |
 
 `mason.js` and `url.js` have no dependencies and no DOM references, so either can be reused
 on its own.
