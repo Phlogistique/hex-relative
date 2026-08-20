@@ -13,6 +13,7 @@ const ui = {
   board: el("board"),
   size: el("size"),
   labels: el("labels"),
+  style: el("style"),
   numbers: el("numbers"),
   mode: el("mode"),
   pass: el("pass"),
@@ -211,6 +212,7 @@ function list(items) {
 
 ui.size.addEventListener("change", () => setSize(Number(ui.size.value)));
 ui.labels.addEventListener("change", () => board.setLabels(ui.labels.value));
+ui.style.addEventListener("change", () => board.setStyle(ui.style.value));
 ui.numbers.addEventListener("change", () => {
   board.setShowNumbers(ui.numbers.checked);
   writeHash();

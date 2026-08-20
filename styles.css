@@ -11,6 +11,11 @@
   --cell: #f3ede0;
   --cell-hover: #e6dcc6;
   --accent: #b8892b;
+  /* goban mode */
+  --wood: #ebcb94;
+  --wood-deep: #dab273;
+  --wood-rim: #a8813f;
+  --grid: #4a3115;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,6 +29,12 @@
     --cell-hover: #453f37;
     --red: #e05a4c;
     --blue: #5b83dd;
+    /* A goban is a goban whatever the room is lit like; it only comes down a
+       shade so it does not glare out of a dark page. */
+    --wood: #cda366;
+    --wood-deep: #b98c4c;
+    --wood-rim: #8a6229;
+    --grid: #4b330f;
   }
 }
 
@@ -202,6 +213,140 @@ main {
   text-anchor: middle;
   /* The baseline is set per label, from the font's measured cap height. */
   pointer-events: none;
+}
+
+/* --- goban mode ---
+   The same position on the tiling's dual: a triangular grid of lines with a
+   stone on each intersection, red playing black and blue playing white. The
+   hexagons stay where they are, unpainted, as the cell each intersection
+   answers to — its Voronoi cell, so pointing at one is still unambiguous. */
+
+.wood {
+  fill: url(#goban-wood);
+  stroke: var(--wood-rim);
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0.08px 0.2px rgba(0, 0, 0, 0.38));
+}
+
+.wood-light {
+  stop-color: var(--wood);
+}
+
+.wood-deep {
+  stop-color: var(--wood-deep);
+}
+
+.grid-line {
+  /* width is set on each line, so the checks can read it back */
+  stroke: var(--grid);
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.star {
+  fill: var(--grid);
+}
+
+.band {
+  stroke: rgba(24, 18, 8, 0.5);
+  stroke-width: 0.03;
+}
+
+/* Red plays black and blue plays white, edges included, so which pair of
+   sides a colour is joining can be read off the stones. */
+.band-red,
+.band-redp {
+  fill: #17140f;
+}
+
+.band-blue,
+.band-bluep {
+  fill: #f6f1e6;
+}
+
+.sheen-black {
+  stop-color: #6a645d;
+}
+
+.body-black {
+  stop-color: #2b2723;
+}
+
+.rim-black {
+  stop-color: #0b0a09;
+}
+
+.sheen-white {
+  stop-color: #fff;
+}
+
+.body-white {
+  stop-color: #f7f2e8;
+}
+
+.rim-white {
+  stop-color: #cdc4b1;
+}
+
+/* Nothing is painted under a stone, but the hexagon is still the click target
+   and still the thing that lights up under the pointer. */
+.style-goban .hex {
+  fill: transparent;
+  stroke: none;
+}
+
+.style-goban .cell:hover .hex {
+  fill: rgba(255, 255, 255, 0.18);
+}
+
+.style-goban .hex-marked {
+  fill: color-mix(in srgb, var(--accent) 26%, transparent);
+  stroke: var(--accent);
+  stroke-width: 0.14;
+}
+
+.style-goban .stone {
+  filter: drop-shadow(0.045px 0.09px 0.09px rgba(0, 0, 0, 0.45));
+}
+
+.style-goban .stone-red {
+  fill: url(#stone-black);
+  stroke: #000;
+  stroke-opacity: 0.5;
+  stroke-width: 0.02;
+}
+
+.style-goban .stone-blue {
+  fill: url(#stone-white);
+  stroke: #a99e89;
+  stroke-width: 0.025;
+}
+
+/* The last stone is ringed in the other colour, as a Go diagram marks it. */
+.style-goban .stone-last.stone-red {
+  stroke: #f4f1e8;
+  stroke-opacity: 1;
+  stroke-width: 0.1;
+}
+
+.style-goban .stone-last.stone-blue {
+  stroke: #4a423a;
+  stroke-width: 0.1;
+}
+
+.style-goban .stone-winning.stone-red,
+.style-goban .stone-winning.stone-blue {
+  stroke: var(--accent);
+  stroke-opacity: 1;
+  stroke-width: 0.16;
+}
+
+.style-goban .stone-label {
+  fill: #f8f4ec;
+}
+
+.style-goban .stone-label.on-blue {
+  fill: #1b1712;
 }
 
 .border {

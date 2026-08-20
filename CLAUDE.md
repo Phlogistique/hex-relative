@@ -25,8 +25,11 @@ stops being worth it, drop the mirror rather than letting them drift.
 python3 -m http.server 8000        # any static server; the page is the repo root
 node --test *.test.mjs             # unit tests: the notation and the URL format
 for c in checks/*.mjs; do node "$c" || break; done   # browser checks, see below
-npx prettier@3 --write .           # the formatting everything here is in
+npx prettier@3 --write .           # the formatting the code here is in
 ```
+
+Run prettier on the code, not on `*.md`: the prose here has never been through
+it, and letting it reflow the tables buries a real change in whitespace.
 
 CI runs the unit tests only. The browser checks need Chromium and are meant to
 be run by hand when the drawing or the interaction changes.
@@ -41,6 +44,7 @@ worth reading as much as running.
 | check | what it holds down |
 |---|---|
 | `labels.mjs` | every coordinate label stands exactly `GAP` off the edge it faces |
+| `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
@@ -83,12 +87,31 @@ measuring in the browser rather than nudging a number:
   the SVG's own units. Scaling the coordinate system up to make `cap` work was
   tried and reverted — it needed the scale republished to CSS as a custom
   property with a fallback, which put back the constant it was meant to remove.
+- The goban's row labels look wrong at `GAP` measured sideways, because that
+  board's flanks lean and a hexagon's do not: the same sideways step leaves
+  less room against a slanted edge than a square one. They are placed by the
+  clearance square on to the edge, and `reach()` says what the sideways step
+  has to be to buy it.
 - Label spacing looked ragged because the row labels were centred instead of
   anchored by the edge facing the board, and then because the offsets were
   measured to the *nearest* outline. On the sides that is the step above,
   receding diagonally, which always passes closer than the flank alongside;
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
+
+**Goban mode is a second drawing of the same board, not a second board.**
+`style` picks between them in `render()`; everything else — the cells, the
+history, the URL, the hit testing — is shared and untouched. The hexagons are
+still there in goban mode, transparent, because they are the click target and
+the Voronoi cell of the intersection, so pointing at one still names exactly
+one cell. `fill: transparent` rather than `fill: none`: `none` stops taking
+clicks, and the board would go dead without looking any different, which is
+what `checks/goban.mjs` ends by proving.
+
+The colours follow the stones rather than the notation: red plays black and
+blue white, edges included, so which pair of sides a colour is joining can be
+read off the board. The coordinate labels stay red and blue, since that is what
+the notation calls those edges, and they are the bridge between the two.
 
 **The page carries no explanatory prose.** Everything is in `title` tooltips —
 the heading, each control, the board, each of the four names in the Cell panel.

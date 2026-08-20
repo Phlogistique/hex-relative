@@ -31,6 +31,13 @@ those stones rather than to the bottom edge — and does not change with board s
 The page itself carries no explanatory prose; everything is in tooltips, on the heading, the
 controls, the board and each of the four names in the Cell panel.
 
+The `Board` control redraws the same position on the tiling's dual: a goban, where each cell becomes
+an intersection of a triangular grid and a stone sits on the intersection, red playing black and blue
+playing white. The edges keep their owners, black along the two red sides and white along the two
+blue ones, and the dots are the 4-4 points and the centre — the star points a Go board would carry,
+put where they mean something here, since `44`, `44'`, `4'4` and `4'4'` are those names on every
+board size.
+
 Both names of every row and column are printed on all four sides of the board: against the board the
 one measured from the nearer edge, running 1 up to about half the board and back down, and outside
 it, smaller and fainter, the one measured from the far edge. Each label line follows the slant of
@@ -77,12 +84,12 @@ its own (`#9:ra1,rb1`) is still read, so links shared before are not broken.
 | file | contents |
 |---|---|
 | `mason.js` | the coordinate system: `relative`, `variants`, `format`, `parse`, `distances` — no DOM |
-| `board.js` | the SVG board: geometry, edge borders, labels, win detection |
+| `board.js` | the SVG board: geometry, edge borders, labels, win detection, the goban drawing |
 | `url.js` | the URL fragment: hexworld's format, read and written — no DOM |
 | `app.js` | UI wiring: toolbar, readout, stone list, history |
 | `mason.test.mjs` | checks against every worked example on the wiki page |
 | `url.test.mjs` | checks the fragment against hexworld's format |
-| `checks/` | browser checks: layout, clicking, history, phones, the largest board — see `CLAUDE.md` |
+| `checks/` | browser checks: layout, clicking, history, phones, the goban, the largest board — see `CLAUDE.md` |
 
 `mason.js` and `url.js` have no dependencies and no DOM references, so either can be reused
 on its own.
@@ -111,7 +118,8 @@ the only workflow runs the tests.
 ## Board conventions
 
 Pointy-top hexagons in a rhombus, in HexWiki's orientation: red joins top to bottom, blue joins left
-to right. Columns are lettered `a`… from the left, rows numbered `1`… from the top, so standard
+to right. Goban mode draws the dual of that tiling and nothing else changes: the cells, their names,
+what a click does and what goes in the URL are all the same, and only the drawing differs. Columns are lettered `a`… from the left, rows numbered `1`… from the top, so standard
 coordinates such as `d10` agree with HexWiki and hexworld.org.
 
 Boards run from 2×2 to 53×53, which is as far as hexworld goes as well. Past the 26th column the

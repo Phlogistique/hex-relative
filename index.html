@@ -40,6 +40,15 @@
         </select>
       </label>
       <label
+        title="How the board is drawn. Hexagons, or a goban: the same position on the tiling's dual, where every cell becomes an intersection of a triangular grid and stones sit on the intersections, red playing black and blue playing white. The dots are the 4-4 points, which are 44, 44', 4'4 and 4'4' on every board size."
+      >
+        <span class="hide-narrow">Board</span>
+        <select id="style" aria-label="How the board is drawn">
+          <option value="hex" selected>hexes</option>
+          <option value="goban">goban</option>
+        </select>
+      </label>
+      <label
         title="What tapping a cell does. Tapping a stone takes it off; with a colour forced, tapping the other colour overwrites it."
       >
         <span class="hide-narrow">Placing</span>
