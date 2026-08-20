@@ -21,7 +21,7 @@ import { relative } from "../mason.js";
 
 const GAP = 0.55; // GAP in board.js
 const HALF_WIDTH = Math.sqrt(3) / 2;
-const STYLES = ["goban", "diagram"];
+const STYLES = ["goban", "full"];
 
 /** Read the drawing back out of the DOM, in the SVG's own units. */
 function measure() {
@@ -106,10 +106,10 @@ function measure() {
     }
   }
 
-  // The left flank of whatever the board is drawn out to. On the wooden one
-  // that is the rim: the polygon is drawn half a bevel short of it and stroked
-  // back out, so the paint reaches further than the points say. With no wood
-  // under it, it is the far side of blue's band.
+  // The left flank of whatever the board is drawn out to. On the slab that is
+  // the rim: the polygon is drawn half a bevel short of it and stroked back
+  // out, so the paint reaches further than the points say. Where the wood runs
+  // on past the frame there is no rim, and it is the far side of blue's band.
   const wood = document.querySelector(".wood");
   let a, b, painted;
   if (wood) {
@@ -123,16 +123,26 @@ function measure() {
   }
   const flank = (y) => a.x + ((y - a.y) * (b.x - a.x)) / (b.y - a.y) - painted;
 
+  // What the row labels turn towards the board: their pill where they have one,
+  // since that is what the eye reads the gap to, and their ink where they do
+  // not. text-anchor is "end" on this side, so the text's own x is its inner
+  // edge already. The flank leans, so a sideways gap is longer than the real
+  // one and has to be brought back square on.
+  const pills = [
+    ...document.querySelectorAll('.pill[data-side="left"][data-line="0"]'),
+  ];
   const rows = [...document.querySelectorAll('.labels text[data-side="left"]')]
     .filter((node) => node.dataset.line === "0")
-    .map((node, index) => ({
-      text: node.textContent,
-      // text-anchor is "end" on this side, so x is the edge facing the board.
-      // The flank leans, so the sideways gap is longer than the real one.
-      gap:
-        (flank(centre(0, index).y) - Number(node.getAttribute("x"))) *
-        HALF_WIDTH,
-    }));
+    .map((node, index) => {
+      const facing = pills.length
+        ? +pills[index].getAttribute("x") + +pills[index].getAttribute("width")
+        : Number(node.getAttribute("x"));
+      return {
+        text: node.textContent,
+        pilled: pills.length > 0,
+        gap: (flank(centre(0, index).y) - facing) * HALF_WIDTH,
+      };
+    });
 
   const stars = [...document.querySelectorAll(".star")].map((dot) => {
     const row = Math.round(+dot.getAttribute("cy") / 1.5);
@@ -210,7 +220,7 @@ await check("The grid both go-style boards are drawn on", async ({ open }) => {
     // whatever the board size, and on the centre.
     const named = stars.map((s) => relative(s.col, s.row, size)).sort();
     console.log(
-      `  ${style.padEnd(8)} ${lines} lines through ${through.length} cells, ` +
+      `  ${style.padEnd(6)} ${lines} lines through ${through.length} cells, ` +
         `three at each but the two acute corners   stars ${named.join(" ")}`,
     );
 
@@ -242,10 +252,10 @@ await check("What the go-style boards leave clear", async ({ open }) => {
     const gaps = rows.map((r) => r.gap);
 
     console.log(
-      `  ${style.padEnd(8)} stones clear the bands by ` +
+      `  ${style.padEnd(6)} stones clear the bands by ` +
         `${clearance.gap.toFixed(3)} (the ${clearance.edge} one)   ` +
-        `row labels face the edge at ${Math.min(...gaps).toFixed(3)}..` +
-        `${Math.max(...gaps).toFixed(3)}`,
+        `${rows[0].pilled ? "pilled " : ""}row labels face the edge at ` +
+        `${Math.min(...gaps).toFixed(3)}..${Math.max(...gaps).toFixed(3)}`,
     );
     if (clearance.gap < 0.15) {
       throw new Error(
@@ -272,7 +282,7 @@ await check("No red and no blue on a go-style board", async ({ open }) => {
   // there. Without it the check would pass just as well on a blank page.
   const hexes = await open("#9n,a1i1e5,c3");
   const { used: before } = await hexes.evaluate(palette);
-  console.log(`  hexes    ${before.length} things painted red or blue`);
+  console.log(`  hexes  ${before.length} things painted red or blue`);
   if (!before.length) {
     throw new Error("found none beside the hexagons, so the reading is blind");
   }
@@ -282,7 +292,7 @@ await check("No red and no blue on a go-style board", async ({ open }) => {
     const page = await board(open, "#9n,a1i1e5,c3", style);
     const { used } = await page.evaluate(palette);
     console.log(
-      `  ${style.padEnd(8)} ${used.length} things painted red or blue` +
+      `  ${style.padEnd(6)} ${used.length} things painted red or blue` +
         (used.length
           ? ": " +
             used.map((u) => `${u.node} ${u.property} ${u.name}`).join(", ")
@@ -315,7 +325,7 @@ await check("Placing on a go-style board", async ({ open }) => {
     const played = await page.textContent(".movelist .coord-small");
     const hash = new URL(page.url()).hash;
     console.log(
-      `  ${style.padEnd(8)} a click on the middle plays ${played} (${hash})`,
+      `  ${style.padEnd(6)} a click on the middle plays ${played} (${hash})`,
     );
     if (played !== "55" || !hash.includes("e5")) {
       throw new Error(

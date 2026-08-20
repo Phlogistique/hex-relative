@@ -44,7 +44,7 @@ worth reading as much as running.
 | check | what it holds down |
 |---|---|
 | `labels.mjs` | every coordinate label stands exactly `GAP` off the edge it faces |
-| `goban.mjs` | the dual drawings: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
+| `goban.mjs` | the two go-style drawings: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
@@ -102,8 +102,9 @@ measuring in the browser rather than nudging a number:
 **The go-style boards are other drawings of the same board, not other
 boards.** `style` picks between the three in `render()`; everything else — the
 cells, the history, the URL, the hit testing — is shared and untouched. Two of
-them are go-style and share the `dual` class: `goban` on wood, `diagram`
-printed on the page. The hexagons are still there in both, transparent, because
+them are go-style and share the `dual` class: `goban` lays a wooden slab on the
+page, `full` runs the wood out to the frame. The hexagons are still there in
+both, transparent, because
 they are the click target and the Voronoi cell of the intersection, so pointing
 at one still names exactly one cell. `fill: transparent` rather than
 `fill: none`: `none` stops taking clicks, and the board would go dead without
@@ -116,21 +117,31 @@ off the stones. Off the board it is not, because black and white are exactly
 the two colours a page cannot lend: one of them is always the paper, and which
 one depends on the colour scheme. Nothing outside the board is drawn in either.
 
-The device that replaces them is filled against hollow, which is how a Go book
-does it and is the one distinction that survives the page turning over: the
-coordinates counting from red's edges are solid, blue's are outlined in the
-page's own ink, and the stone list's dots are a disc and a ring. The `diagram`
-board's edge bands are outlined for the same reason — a black band vanishes
-into a dark page as surely as a white one vanishes into a light one — and its
-stones carry a mid-grey rim, that being the one tone that tells against black,
-white and both backgrounds at once. Hollow numerals need bold stems: at
+There are two ways out and the boards take one each. Given wood to print on,
+black and white can be used outright, so `full` sets every coordinate in a
+pill — a coordinate written on a stone, which brings its own background and so
+owes the page nothing. Where there is no wood — outside the slab, and in the
+stone list either way — the device is filled against hollow, which is how a Go
+book does it and is the one distinction that survives the page turning over:
+red's coordinates solid, blue's outlined in the page's own ink, and the stone
+list's dots a disc and a ring. Hollow numerals need bold stems: at
 `font-weight: 400` the outlines close up into a smudge on a large board.
 
-The rule is worth a check because it is easy to leave half-done. `goban.mjs`
-resolves `--red` and `--blue` through a probe element and then reads back every
-`color`, `fill`, `stroke`, `background` and `box-shadow` on the board and the
-panels beside it. It reads the hexagons first and insists on finding 151 of
-them there, so that a reading of zero means something.
+Only the near-edge name is pilled. Both names of a row name the same row, so
+one pill says which pair it belongs to, and `buildPills` skipping the second
+line is the difference between a border and a wall of stones. It costs a
+clearance rule: the pill is what faces the board once there is one, so `pill()`
+reports the overhang and `layoutLabels` gives it up out of the ink's position,
+which is why the pilled labels still measure `GAP` in `checks/goban.mjs`.
+
+The rule is worth a check because it is easy to leave half-done — it caught a
+missed rename here, the stone list's dots having been keyed on each drawing's
+name. They hang off `body[data-dual]` now, so another go-style board needs no
+rule of its own. `goban.mjs` resolves `--red` and `--blue` through a probe
+element and then reads back every `color`, `fill`, `stroke`, `background` and
+`box-shadow` on the board and the panels beside it. It reads the hexagons first
+and insists on finding 151 of them there, so that a reading of zero means
+something.
 
 **The page carries no explanatory prose.** Everything is in `title` tooltips —
 the heading, each control, the board, each of the four names in the Cell panel.

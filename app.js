@@ -176,6 +176,10 @@ function renderStatus() {
  */
 function setStyle(mode) {
   document.body.dataset.style = mode;
+  // The panels only care whether the board is go-style at all, so they hang
+  // off this rather than off the name of the drawing. Naming each one in the
+  // stylesheet leaves a rule to forget every time another is added.
+  document.body.toggleAttribute("data-dual", mode !== "hex");
   board.setStyle(mode);
   renderStatus();
 }

@@ -44,12 +44,15 @@ const BORDER_WIDTH = 0.3;
 // --- the go-style boards ---
 // The same board drawn as the tiling's dual: the cell centres become the
 // intersections of a triangular grid and a stone sits on each. Two of them,
-// differing only in what the grid is drawn on: `goban` is a wooden board,
-// `diagram` is the same lines printed on the page. Everything below is
-// measured out from the outermost intersections, in the same units as the rest
-// of the drawing (a hexagon's circumradius is 1, and neighbouring
-// intersections stand sqrt(3) apart).
-const STONE = { hex: 0.78, goban: 0.8, diagram: 0.8 };
+// differing in how much of the page the board is: `goban` is a wooden slab
+// laid on it, `full` is wood right out to the frame, with the coordinates
+// printed on it. Everything below is measured out from the outermost
+// intersections, in the same units as the rest of the drawing (a hexagon's
+// circumradius is 1, and neighbouring intersections stand sqrt(3) apart).
+const STONE = { hex: 0.78, goban: 0.8, full: 0.8 };
+// The pill a coordinate is set in when it is printed on the board itself:
+// how far it stands out past the digits' ink, and how round its ends are.
+const PILL = { x: 0.3, y: 0.21, r: 0.36 };
 const GRID_WIDTH = 0.05;
 const STAR = 0.16; // the dots at the 4-4 points
 // The coloured band has to clear the rim of a stone played on the edge, so it
@@ -71,7 +74,7 @@ export class HexBoard {
     this.container = container;
     this.size = options.size ?? 13;
     this.labels = options.labels ?? "relative"; // "relative" | "standard" | "none"
-    this.style = options.style ?? "hex"; // "hex" | "goban" | "diagram"
+    this.style = options.style ?? "hex"; // "hex" | "goban" | "full"
     this.showNumbers = options.showNumbers ?? true;
     this.onHover = options.onHover ?? (() => {});
     this.onSelect = options.onSelect ?? (() => {});
@@ -301,6 +304,7 @@ export class HexBoard {
     // unplaced, get positioned, and only then does the viewBox close in.
     this.container.replaceChildren(svg);
     setViewBox(svg, this.layoutLabels(labels, board));
+    this.buildPills(labels, labelLayer);
     this.paint();
   }
 
@@ -519,6 +523,47 @@ export class HexBoard {
   }
 
   /**
+   * Set each coordinate in a pill, which is what stands in for red and blue
+   * once the board is a goban: black with light digits for the names counted
+   * from red's edges, white with dark ones for blue's. A coordinate written on
+   * a stone, in other words, which is the one way of saying black and white
+   * that needs no help from the paper — the pill brings its own background,
+   * so neither colour depends on which way round the page is.
+   *
+   * Only the near-edge name gets one. Both names of a row are the same row, so
+   * one pill names the pair, and a second line of them turns the border into a
+   * wall of stones; the far-edge name is printed on the bare wood instead.
+   *
+   * The pills go in one group of their own at the head of the layer, so they
+   * sit behind every label and stay in the order the labels were made in.
+   */
+  buildPills(labels, layer) {
+    const pad = this.pill();
+    if (!pad) return;
+    const pills = document.createElementNS(SVG_NS, "g");
+    pills.setAttribute("class", "pills");
+    layer.insertBefore(pills, layer.firstChild);
+
+    for (const l of labels) {
+      if (l.line) continue;
+      const [x0, y0, x1, y1] = l.box;
+      // Rows are named from red's edges and columns from blue's, whichever
+      // spelling of the coordinates is on show, so the side decides the pill.
+      const red = l.side === "left" || l.side === "right";
+      const rect = document.createElementNS(SVG_NS, "rect");
+      rect.setAttribute("x", x0 - pad.x);
+      rect.setAttribute("y", y0 - pad.y);
+      rect.setAttribute("width", x1 - x0 + 2 * pad.x);
+      rect.setAttribute("height", y1 - y0 + 2 * pad.y);
+      rect.setAttribute("rx", pad.r);
+      rect.setAttribute("class", `pill pill-${red ? "red" : "blue"}`);
+      rect.dataset.side = l.side;
+      rect.dataset.line = l.line;
+      pills.appendChild(rect);
+    }
+  }
+
+  /**
    * How far the drawing reaches past the outermost cell centres: out to the
    * side of the board a row label faces, and out to the top or bottom a column
    * label faces. Both are measured square on to the edge in question.
@@ -536,11 +581,20 @@ export class HexBoard {
 
   /**
    * How far past the outermost intersections the go-style drawing reaches,
-   * square on to the edge: the wooden rim of a goban, and the far side of the
-   * coloured band when there is no wood under it.
+   * square on to the edge: the wooden rim of the slab, or the far side of the
+   * coloured band where the wood runs on past the frame and has no rim.
    */
   edge() {
     return this.style === "goban" ? WOOD : BAND + BORDER_WIDTH / 2;
+  }
+
+  /**
+   * How far a coordinate's pill stands out past its ink, or nothing where the
+   * coordinates are bare. The pill is what faces the board once there is one,
+   * so it is the pill that keeps the clearance and the ink that gives it up.
+   */
+  pill() {
+    return this.style === "full" ? PILL : null;
   }
 
   /**
@@ -568,6 +622,7 @@ export class HexBoard {
     }
     const last = this.size - 1;
     const reach = this.reach();
+    const pad = this.pill() ?? { x: 0, y: 0 };
     const pick = (side, line) =>
       labels.filter((l) => l.side === side && l.line === line);
 
@@ -586,20 +641,23 @@ export class HexBoard {
       const place = placers[side];
       const sideways = side === "left" || side === "right";
 
-      // To the edge of the text for a row, to the edge of the ink for a column.
+      // To the edge of the text for a row, to the edge of the ink for a
+      // column, and out past both again by however far the pill overhangs.
       const d = sideways
-        ? (reach.flank + GAP) * reach.slant
-        : reach.end + GAP + inner[0].ink;
+        ? (reach.flank + GAP) * reach.slant + pad.x
+        : reach.end + GAP + pad.y + inner[0].ink;
       for (const l of inner) apply(l, place(l, d), bounds);
 
       const outer = pick(side, 1);
       if (!outer.length) continue;
+      // Only the near-edge name is set in a pill, so the second line steps
+      // back past one overhang rather than two.
       const step = sideways
-        ? Math.max(...inner.map((l) => l.width)) + LINE_GAP
-        : inner[0].ink + outer[0].ink + LINE_GAP;
+        ? Math.max(...inner.map((l) => l.width)) + LINE_GAP + pad.x
+        : inner[0].ink + outer[0].ink + LINE_GAP + pad.y;
       for (const l of outer) apply(l, place(l, d + step), bounds);
     }
-    return grow(bounds, PAD);
+    return grow(bounds, PAD + Math.max(pad.x, pad.y));
   }
   /** Repaint stones, move numbers and highlights without rebuilding the SVG. */
   paint() {
@@ -703,6 +761,7 @@ function spot(centre, dx, dy, l, anchor) {
 }
 
 function apply(l, at, bounds) {
+  l.box = at.box;
   l.node.setAttribute("x", at.x);
   l.node.setAttribute("y", at.y);
   // Inline, because the stylesheet's `text { text-anchor: middle }` outranks

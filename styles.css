@@ -16,6 +16,7 @@
   --wood-deep: #dab273;
   --wood-rim: #a8813f;
   --grid: #4a3115;
+  --wood-ink: #4a3b26;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -35,6 +36,7 @@
     --wood-deep: #b98c4c;
     --wood-rim: #8a6229;
     --grid: #4b330f;
+    --wood-ink: #3b2c15;
   }
 }
 
@@ -315,14 +317,11 @@ main {
   opacity: 0.62;
 }
 
-/* --- the wooden one --- */
-
-.wood {
-  fill: url(#goban-wood);
-  stroke: var(--wood-rim);
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0.08px 0.2px rgba(0, 0, 0, 0.38));
-}
+/* --- both of them are wooden ---
+   The grid, the stones and the bands are the same on either; what differs is
+   how much of the page is board. `goban` lays a slab on it and prints the
+   coordinates outside, `full` runs the wood out to the frame and prints them
+   on it. */
 
 .wood-light {
   stop-color: var(--wood);
@@ -332,38 +331,47 @@ main {
   stop-color: var(--wood-deep);
 }
 
-.style-goban .grid-line {
+.dual .grid-line {
   stroke: var(--grid);
   opacity: 0.85;
 }
 
-.style-goban .star {
+.dual .star {
   fill: var(--grid);
 }
 
-.style-goban .band {
+.dual .band {
   stroke: rgba(24, 18, 8, 0.5);
 }
 
-.style-goban .cell:hover .hex {
+.dual .cell:hover .hex {
   fill: rgba(255, 255, 255, 0.18);
 }
 
-.style-goban .stone {
+.dual .stone {
   filter: drop-shadow(0.045px 0.09px 0.09px rgba(0, 0, 0, 0.45));
 }
 
-.style-goban .stone-red {
+.dual .stone-red {
   fill: url(#stone-black);
   stroke: #000;
   stroke-opacity: 0.5;
   stroke-width: 0.02;
 }
 
-.style-goban .stone-blue {
+.dual .stone-blue {
   fill: url(#stone-white);
   stroke: #a99e89;
   stroke-width: 0.025;
+}
+
+/* --- the slab --- */
+
+.wood {
+  fill: url(#goban-wood);
+  stroke: var(--wood-rim);
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0.08px 0.2px rgba(0, 0, 0, 0.38));
 }
 
 .sheen-black {
@@ -390,45 +398,53 @@ main {
   stop-color: #cdc4b1;
 }
 
-/* --- the printed one ---
-   No board under the grid at all, so the page shows through, and whichever of
-   the two colours the page is wearing that day would vanish into it: the black
-   edges disappear on a dark page exactly as the white ones do on a light one.
-   So the bands are outlined in the page's ink and read as filled or hollow,
-   the same device the labels and the stone list use, and the stones carry a
-   mid-grey rim, which is the one tone that tells against black, white and
-   both backgrounds at once. */
+/* --- wood to the frame ---
+   No slab and no rim: the timber is the whole panel, so the coordinates have a
+   mid-tone to be printed on and can be black and white outright. Each one is
+   set in a pill — a coordinate written on a stone — which is the one way of
+   saying black and white that needs nothing from the paper, since the pill
+   brings its own background with it. */
 
-.style-diagram .grid-line {
-  stroke: var(--ink);
-  opacity: 0.45;
+body[data-style="full"] .board {
+  background: linear-gradient(160deg, var(--wood) 0%, var(--wood-deep) 100%);
+  border-color: var(--wood-rim);
+  box-shadow: inset 0 0 2.5rem rgba(72, 45, 8, 0.16);
 }
 
-.style-diagram .star {
-  fill: var(--ink);
-  opacity: 0.7;
+.pill-red {
+  fill: #17140f;
 }
 
-.style-diagram .band {
-  stroke: var(--ink);
-  stroke-width: 0.055;
-  stroke-opacity: 0.8;
+.pill-blue {
+  fill: #f7f2e8;
 }
 
-.style-diagram .cell:hover .hex {
-  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+/* Which pill a coordinate sits in follows the side it is printed on — rows are
+   named from red's edges and columns from blue's — so it holds for the
+   standard spelling of the coordinates as well as the relative one. */
+.style-full .labels text[data-side="left"][data-line="0"],
+.style-full .labels text[data-side="right"][data-line="0"] {
+  fill: #f8f4ec;
+  stroke: none;
+  font-weight: 600;
 }
 
-.style-diagram .stone-red {
+.style-full .labels text[data-side="top"][data-line="0"],
+.style-full .labels text[data-side="bottom"][data-line="0"] {
   fill: #16130f;
-  stroke: var(--muted);
-  stroke-width: 0.035;
+  stroke: none;
+  font-weight: 600;
 }
 
-.style-diagram .stone-blue {
-  fill: #fbf8f2;
-  stroke: var(--muted);
-  stroke-width: 0.035;
+/* The far-edge name goes on the bare wood beside its pill, in the wood's own
+   ink. It needs no colour of its own: it names the same row or column as the
+   pill it sits against, so that pill already says which of the two it belongs
+   to. */
+.style-full .labels text[data-line="1"] {
+  fill: var(--wood-ink);
+  stroke: none;
+  font-weight: 600;
+  opacity: 0.85;
 }
 
 .border {
@@ -644,13 +660,11 @@ text {
 /* Off the board the two colours have to be told apart without them: filled for
    black, a ring for white, the way a Go book does it. Both are the page's own
    ink, so neither depends on which way round the page is. */
-body[data-style="goban"] .dot-red,
-body[data-style="diagram"] .dot-red {
+body[data-dual] .dot-red {
   background: var(--ink);
 }
 
-body[data-style="goban"] .dot-blue,
-body[data-style="diagram"] .dot-blue {
+body[data-dual] .dot-blue {
   background: transparent;
   box-shadow: inset 0 0 0 2px var(--ink);
 }
@@ -675,10 +689,8 @@ body[data-style="diagram"] .dot-blue {
   color: var(--blue);
 }
 
-body[data-style="goban"] .status-red,
-body[data-style="goban"] .status-blue,
-body[data-style="diagram"] .status-red,
-body[data-style="diagram"] .status-blue {
+body[data-dual] .status-red,
+body[data-dual] .status-blue {
   color: var(--ink);
 }
 
