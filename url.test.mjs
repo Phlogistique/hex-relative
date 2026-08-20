@@ -6,15 +6,15 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { standard } from "./mason.js";
 import { formatHash, parseHash } from "./url.js";
 
-const MAX = 26;
+const MAX = 53;
 const read = (hash) => parseHash(hash, MAX);
-const LETTERS = "abcdefghijklmnopqrstuvwxyz";
 const cells = (state) =>
   state.moves.map((m) =>
     m.type === "move"
-      ? `${m.color[0]}${LETTERS[m.col]}${m.row + 1}`
+      ? `${m.color[0]}${standard(m.col, m.row)}`
       : `${m.color[0]}:${m.type}`,
   );
 
@@ -95,7 +95,13 @@ test("square boards only, and only ones this board can draw", () => {
   assert.equal(read("#13x13,d10").size, 13);
   assert.equal(read("#11x13,d10"), null);
   assert.equal(read("#1,"), null);
-  assert.equal(read("#40,a1"), null);
+  assert.equal(read("#54,a1"), null); // 53x53 is as far as hexworld goes
+});
+
+test("a wide board's two-letter columns survive the round trip", () => {
+  const state = read("#53,ba53aa27a1");
+  assert.deepEqual(cells(state), ["rba53", "baa27", "ra1"]);
+  assert.equal(formatHash({ ...state, cursor: 3 }), "#53,ba53aa27a1");
 });
 
 test("refuses what it cannot read rather than guessing", () => {

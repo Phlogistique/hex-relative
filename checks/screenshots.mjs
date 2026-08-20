@@ -13,6 +13,9 @@ const SHOTS = [
   ["board-13.png", "#13n,d10j9d5j4c2b5b8", {}],
   ["board-5.png", "#5n,c3b4d2", {}],
   ["board-19.png", "#19n,j10d4", {}],
+  // the largest board there is, where the labels are at their smallest
+  ["board-53.png", "#53n,ba53aa27a1", {}],
+  ["board-53-standard.png", "#53n,ba53aa27a1", { labels: "standard" }],
   ["board-standard.png", "#11n,f6e5", { labels: "standard" }],
   // stones on every edge and corner, where the border used to cut across them
   ["edges.png", "#9n,a1i1a9i9e1e9a5i5c1g9", {}],

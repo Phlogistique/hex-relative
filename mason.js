@@ -93,14 +93,33 @@ export function relative(col, row, size) {
 
 const LETTERS = "abcdefghijklmnopqrstuvwxyz";
 
+/**
+ * The name of a column: a..z, then aa..az, ba.. — bijective base 26, the same
+ * spelling hexworld gives columns past the 26th, so the two agree on the wide
+ * boards as well. The largest board either draws, 53x53, reaches ba.
+ */
+export function column(col) {
+  let out = "";
+  for (let n = col; n >= 0; n = Math.floor(n / 26) - 1)
+    out = LETTERS[n % 26] + out;
+  return out;
+}
+
+/** The inverse of column(): "a" is 0, "z" is 25, "aa" is 26. */
+function columnIndex(letters) {
+  let n = -1;
+  for (const letter of letters) n = (n + 1) * 26 + LETTERS.indexOf(letter);
+  return n;
+}
+
 /** Ordinary Hex coordinates, e.g. d10. */
 export function standard(col, row) {
-  return LETTERS[col] + (row + 1);
+  return column(col) + (row + 1);
 }
 
 const COMPACT = /^(\d)('?)-?(\d)('?)$/; // 44, 54', 5'4, 4'4', optional hyphen
 const HYPHENATED = /^(\d+)('?)-(\d+)('?)$/; // 10-4, 12'-3 ... hyphen required
-const STANDARD = /^([a-z])(\d+)$/;
+const STANDARD = /^([a-z]+)(\d+)$/;
 
 /**
  * Parse a relative coordinate ("5'2", "8'-2", "10-4") or an ordinary one
@@ -121,7 +140,7 @@ export function parse(input, size) {
 
   const std = STANDARD.exec(s);
   if (std) {
-    const col = LETTERS.indexOf(std[1]);
+    const col = columnIndex(std[1]);
     const row = Number(std[2]) - 1;
     return inRange(col, row, size) ? { col, row } : null;
   }
