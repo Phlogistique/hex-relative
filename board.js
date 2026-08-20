@@ -41,6 +41,21 @@ const PAD = 0.15; // a little air beyond the outermost labels
 
 const BORDER_WIDTH = 0.3;
 
+// --- the go-style boards ---
+// The same board drawn as the tiling's dual: the cell centres become the
+// intersections of a triangular grid and a stone sits on each, on a wooden
+// board. Everything below is measured out from the outermost intersections, in
+// the same units as the rest of the drawing (a hexagon's circumradius is 1,
+// and neighbouring intersections stand sqrt(3) apart).
+const STONE = { hex: 0.78, goban: 0.8 };
+const GRID_WIDTH = 0.05;
+const STAR = 0.16; // the dots at the 4-4 points
+// The coloured band has to clear the rim of a stone played on the edge, so it
+// starts beyond STONE.goban rather than against the outermost line.
+const BAND = 1.28; // middle of the band
+const WOOD = 1.85; // the wooden edge of the board
+const BEVEL = 0.44; // stroke that rounds the wood's corners and darkens its rim
+
 // A column runs diagonally, gaining this much x per unit of y, so labels
 // placed on the continuation of a column follow the slant of the rhombus.
 const SLANT = Math.sqrt(3) / 3;
@@ -54,6 +69,7 @@ export class HexBoard {
     this.container = container;
     this.size = options.size ?? 13;
     this.labels = options.labels ?? "relative"; // "relative" | "standard" | "none"
+    this.style = options.style ?? "hex"; // "hex" | "goban"
     this.showNumbers = options.showNumbers ?? true;
     this.onHover = options.onHover ?? (() => {});
     this.onSelect = options.onSelect ?? (() => {});
@@ -214,6 +230,12 @@ export class HexBoard {
     this.render();
   }
 
+  /** How the board is drawn: hexagons, or a grid with stones on it. */
+  setStyle(mode) {
+    this.style = mode;
+    this.render();
+  }
+
   setShowNumbers(on) {
     this.showNumbers = on;
     this.paint();
@@ -228,23 +250,39 @@ export class HexBoard {
   render() {
     const { size } = this;
     const last = size - 1;
+    const dual = this.style !== "hex";
     // The board itself, outside edge of the border included.
-    const board = {
-      minX: -HALF_WIDTH - BORDER_WIDTH,
-      maxX: Math.sqrt(3) * (last + last / 2) + HALF_WIDTH + BORDER_WIDTH,
-      minY: -1 - BORDER_WIDTH,
-      maxY: 1.5 * last + 1 + BORDER_WIDTH,
-    };
+    const board = dual
+      ? boxOf(outline(size, WOOD))
+      : {
+          minX: -HALF_WIDTH - BORDER_WIDTH,
+          maxX: Math.sqrt(3) * (last + last / 2) + HALF_WIDTH + BORDER_WIDTH,
+          minY: -1 - BORDER_WIDTH,
+          maxY: 1.5 * last + 1 + BORDER_WIDTH,
+        };
 
     const svg = document.createElementNS(SVG_NS, "svg");
     setViewBox(svg, board);
-    svg.setAttribute("class", "hex-board");
+    // `dual` is what the two go-style boards share: the grid, the stones on
+    // it, and the hexagons left unpainted underneath.
+    svg.setAttribute(
+      "class",
+      `hex-board style-${this.style}${dual ? " dual" : ""}`,
+    );
     svg.setAttribute("role", "grid");
     svg.setAttribute("aria-label", `Hex board, ${size} by ${size}`);
 
+    if (dual) svg.appendChild(stoneShading());
+    const groundLayer = group(svg, "ground");
     const cellLayer = group(svg, "cells");
     const edgeLayer = group(svg, "edges");
     const labelLayer = group(svg, "labels");
+
+    if (dual) {
+      if (this.style === "goban") this.buildWood(groundLayer);
+      this.buildGrid(groundLayer);
+      this.buildStars(groundLayer);
+    }
 
     this.cells = new Map();
     for (let row = 0; row < size; row++) {
@@ -252,7 +290,8 @@ export class HexBoard {
         cellLayer.appendChild(this.buildCell(col, row));
       }
     }
-    this.buildEdges(edgeLayer);
+    if (dual) this.buildBands(edgeLayer);
+    else this.buildEdges(edgeLayer);
     const labels = this.buildLabels(labelLayer);
 
     this.svg = svg;
@@ -278,7 +317,7 @@ export class HexBoard {
     g.appendChild(hex);
 
     const stone = document.createElementNS(SVG_NS, "circle");
-    stone.setAttribute("r", 0.78);
+    stone.setAttribute("r", STONE[this.style]);
     stone.setAttribute("class", "stone hidden");
     g.appendChild(stone);
 
@@ -332,6 +371,103 @@ export class HexBoard {
   }
 
   /**
+   * The board itself: the rhombus of intersections, grown WOOD outwards on
+   * every side. Drawn a half-bevel short of that and stroked back out to it,
+   * so the same stroke rounds the two sharp corners and darkens the rim.
+   */
+  buildWood(layer) {
+    const wood = document.createElementNS(SVG_NS, "polygon");
+    wood.setAttribute("points", pointsOf(outline(this.size, WOOD - BEVEL / 2)));
+    wood.setAttribute("stroke-width", BEVEL);
+    wood.setAttribute("class", "wood");
+    layer.appendChild(wood);
+  }
+
+  /**
+   * The triangular tiling, as the three families of straight lines running
+   * through the cell centres: the rows, the columns, and the short diagonals
+   * across them. Every intersection is a cell, and every cell an intersection.
+   */
+  buildGrid(layer) {
+    const { size } = this;
+    const last = size - 1;
+    const draw = (a, b) => {
+      const line = document.createElementNS(SVG_NS, "line");
+      line.setAttribute("x1", a.x);
+      line.setAttribute("y1", a.y);
+      line.setAttribute("x2", b.x);
+      line.setAttribute("y2", b.y);
+      line.setAttribute("stroke-width", GRID_WIDTH);
+      line.setAttribute("class", "grid-line");
+      layer.appendChild(line);
+    };
+    for (let i = 0; i < size; i++) {
+      draw(center(0, i), center(last, i)); // a row, running flat
+      draw(center(i, 0), center(i, last)); // a column, running down the slant
+    }
+    // The third family is where col + row is constant. Its two ends are the
+    // acute corners of the board, where the line is a single point and there
+    // is nothing to draw.
+    for (let k = 1; k < 2 * last; k++) {
+      const lo = Math.max(0, k - last);
+      const hi = Math.min(last, k);
+      draw(center(lo, k - lo), center(hi, k - hi));
+    }
+  }
+
+  /**
+   * Go's star points, put where they mean something on this board: the 4-4
+   * point of each corner — 44, 44', 4'4 and 4'4', which are those names on
+   * every board size — and the centre, when a single cell sits at it. Small
+   * boards where the four would collide with each other get the centre alone.
+   */
+  buildStars(layer) {
+    const { size } = this;
+    const at = new Set();
+    if (size >= 9) {
+      for (const col of [3, size - 4]) {
+        for (const row of [3, size - 4]) at.add(this.key(col, row));
+      }
+    }
+    if (size >= 5 && size % 2) at.add(this.key((size - 1) / 2, (size - 1) / 2));
+    for (const cell of at) {
+      const [col, row] = cell.split(",").map(Number);
+      const { x, y } = center(col, row);
+      const dot = document.createElementNS(SVG_NS, "circle");
+      dot.setAttribute("cx", x);
+      dot.setAttribute("cy", y);
+      dot.setAttribute("r", STAR);
+      dot.setAttribute("class", "star");
+      layer.appendChild(dot);
+    }
+  }
+
+  /**
+   * The coloured edges, as four bands beyond the outermost intersections, far
+   * enough out to clear the rim of a stone played on one. They are mitred
+   * where they meet: each end is cut along the corner's bisector, so red's
+   * band and blue's divide the corner between them and neither overruns.
+   */
+  buildBands(layer) {
+    const inner = BAND - BORDER_WIDTH / 2;
+    const outer = BAND + BORDER_WIDTH / 2;
+    for (const s of sides(this.size)) {
+      const band = document.createElementNS(SVG_NS, "polygon");
+      band.setAttribute(
+        "points",
+        pointsOf([
+          pushed(s.a, s.before, s.normal, inner),
+          pushed(s.b, s.normal, s.after, inner),
+          pushed(s.b, s.normal, s.after, outer),
+          pushed(s.a, s.before, s.normal, outer),
+        ]),
+      );
+      band.setAttribute("class", `band band-${s.edge}`);
+      layer.appendChild(band);
+    }
+  }
+
+  /**
    * Create the labels without placing them: their positions depend on how wide
    * they turn out to be, which is only knowable once they are rendered.
    */
@@ -381,6 +517,71 @@ export class HexBoard {
   }
 
   /**
+   * Create the labels without placing them: their positions depend on how wide
+   * they turn out to be, which is only knowable once they are rendered.
+   */
+  buildLabels(layer) {
+    if (this.labels === "none") return [];
+    const { size } = this;
+    const relative = this.labels === "relative";
+    const out = [];
+    const add = (side, line, index, content, className) => {
+      const node = text(layer, content, className);
+      node.dataset.side = side;
+      node.dataset.line = line;
+      out.push({ node, side, line, index });
+    };
+
+    for (let col = 0; col < size; col++) {
+      if (!relative) {
+        const letter = column(col);
+        add("top", 0, col, letter, "axis");
+        add("bottom", 0, col, letter, "axis");
+        continue;
+      }
+      // Every column has two names, one per blue edge. The nearer-edge one
+      // goes against the board, the other outside it, quieter.
+      const d = distances(col, 0, size);
+      const { inner, outer } = scalePair(d.blue, d.bluePrime);
+      add("top", 0, col, inner, "axis-blue");
+      add("top", 1, col, outer, "axis-blue axis-alt");
+      add("bottom", 0, col, inner, "axis-blue");
+      add("bottom", 1, col, outer, "axis-blue axis-alt");
+    }
+
+    for (let row = 0; row < size; row++) {
+      if (!relative) {
+        add("left", 0, row, `${row + 1}`, "axis");
+        add("right", 0, row, `${row + 1}`, "axis");
+        continue;
+      }
+      const d = distances(0, row, size);
+      const { inner, outer } = scalePair(d.red, d.redPrime);
+      add("left", 0, row, inner, "axis-red");
+      add("left", 1, row, outer, "axis-red axis-alt");
+      add("right", 0, row, inner, "axis-red");
+      add("right", 1, row, outer, "axis-red axis-alt");
+    }
+    return out;
+  }
+
+  /**
+   * How far the drawing reaches past the outermost cell centres: out to the
+   * side of the board a row label faces, and out to the top or bottom a column
+   * label faces. Both are measured square on to the edge in question.
+   *
+   * A row label is then placed by stepping sideways, and `slant` is what that
+   * step has to be multiplied by to cover the distance. A hexagon's flank is
+   * vertical, so sideways is already square on and the factor is 1; the wooden
+   * board's flank leans, so the same clearance costs a longer step.
+   */
+  reach() {
+    return this.style === "hex"
+      ? { flank: HALF_WIDTH + BORDER_WIDTH, end: 1 + BORDER_WIDTH, slant: 1 }
+      : { flank: WOOD, end: WOOD, slant: 1 / HALF_WIDTH };
+  }
+
+  /**
    * Place the labels GAP clear of the board, the second line LINE_GAP clear of
    * the first, then report what the drawing spans.
    *
@@ -404,6 +605,7 @@ export class HexBoard {
       l.ink = inkHalf(l.node);
     }
     const last = this.size - 1;
+    const reach = this.reach();
     const pick = (side, line) =>
       labels.filter((l) => l.side === side && l.line === line);
 
@@ -424,8 +626,8 @@ export class HexBoard {
 
       // To the edge of the text for a row, to the edge of the ink for a column.
       const d = sideways
-        ? HALF_WIDTH + BORDER_WIDTH + GAP
-        : 1 + BORDER_WIDTH + GAP + inner[0].ink;
+        ? (reach.flank + GAP) * reach.slant
+        : reach.end + GAP + inner[0].ink;
       for (const l of inner) apply(l, place(l, d), bounds);
 
       const outer = pick(side, 1);
@@ -601,6 +803,109 @@ function outsideSide(col, row, size) {
   if (col < 0) return "blue"; // left of the blue edge
   if (col >= size) return "bluep"; // right of the blue' edge
   return null;
+}
+
+/**
+ * The four sides of the rhombus the cell centres describe, going round from
+ * the top, each with its own outward unit normal and its neighbours'. The edge
+ * a side belongs to is named as outsideSide() names it.
+ */
+function sides(size) {
+  const last = size - 1;
+  const corners = [
+    center(0, 0),
+    center(last, 0),
+    center(last, last),
+    center(0, last),
+  ];
+  const normals = [
+    [0, -1], // top
+    [HALF_WIDTH, -0.5], // right
+    [0, 1], // bottom
+    [-HALF_WIDTH, 0.5], // left
+  ];
+  const edges = ["redp", "bluep", "red", "blue"];
+  return normals.map((normal, k) => ({
+    a: corners[k],
+    b: corners[(k + 1) % 4],
+    normal,
+    before: normals[(k + 3) % 4],
+    after: normals[(k + 1) % 4],
+    edge: edges[k],
+  }));
+}
+
+/**
+ * Where a corner ends up when both of the sides meeting there are pushed `d`
+ * outwards: the one point that stands `d` off each of them, which is `d` along
+ * both normals at once and so lies on the corner's bisector.
+ */
+function pushed(point, n1, n2, d) {
+  const k = d / (1 + n1[0] * n2[0] + n1[1] * n2[1]);
+  return { x: point.x + k * (n1[0] + n2[0]), y: point.y + k * (n1[1] + n2[1]) };
+}
+
+/** The rhombus of cell centres, grown `d` outwards on every side. */
+function outline(size, d) {
+  return sides(size).map((s) => pushed(s.a, s.before, s.normal, d));
+}
+
+const pointsOf = (points) => points.map((p) => `${p.x},${p.y}`).join(" ");
+
+function boxOf(points) {
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minY: Math.min(...ys),
+    maxY: Math.max(...ys),
+  };
+}
+
+/**
+ * The shading the pieces are drawn with: two stones lit from the upper left,
+ * and the timber that may go under them. The stops carry classes rather than
+ * colours, so the stylesheet keeps them and can flatten the stones out for the
+ * printed-diagram board or follow the colour scheme for the wood.
+ */
+function stoneShading() {
+  const defs = document.createElementNS(SVG_NS, "defs");
+  const stops = (node, list) => {
+    for (const [offset, className] of list) {
+      const stop = document.createElementNS(SVG_NS, "stop");
+      stop.setAttribute("offset", offset);
+      stop.setAttribute("class", className);
+      node.appendChild(stop);
+    }
+    defs.appendChild(node);
+    return node;
+  };
+
+  for (const color of ["black", "white"]) {
+    const stone = document.createElementNS(SVG_NS, "radialGradient");
+    stone.setAttribute("id", `stone-${color}`);
+    stone.setAttribute("cx", "0.36");
+    stone.setAttribute("cy", "0.30");
+    stone.setAttribute("r", "0.78");
+    stops(stone, [
+      ["0%", `sheen-${color}`],
+      ["45%", `body-${color}`],
+      ["100%", `rim-${color}`],
+    ]);
+  }
+
+  const wood = document.createElementNS(SVG_NS, "linearGradient");
+  wood.setAttribute("id", "goban-wood");
+  wood.setAttribute("x1", "0.1");
+  wood.setAttribute("y1", "0");
+  wood.setAttribute("x2", "0.6");
+  wood.setAttribute("y2", "1");
+  stops(wood, [
+    ["0%", "wood-light"],
+    ["100%", "wood-deep"],
+  ]);
+  return defs;
 }
 
 function group(parent, className) {

@@ -11,6 +11,11 @@
   --cell: #f3ede0;
   --cell-hover: #e6dcc6;
   --accent: #b8892b;
+  /* goban mode */
+  --wood: #ebcb94;
+  --wood-deep: #dab273;
+  --wood-rim: #a8813f;
+  --grid: #4a3115;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,6 +29,12 @@
     --cell-hover: #453f37;
     --red: #e05a4c;
     --blue: #5b83dd;
+    /* A goban is a goban whatever the room is lit like; it only comes down a
+       shade so it does not glare out of a dark page. */
+    --wood: #cda366;
+    --wood-deep: #b98c4c;
+    --wood-rim: #8a6229;
+    --grid: #4b330f;
   }
 }
 
@@ -202,6 +213,196 @@ main {
   text-anchor: middle;
   /* The baseline is set per label, from the font's measured cap height. */
   pointer-events: none;
+}
+
+/* --- the go-style boards ---
+   The same position on the tiling's dual: a triangular grid of lines with a
+   stone on each intersection, red playing black and blue playing white. Two of
+   them, differing only in what the grid is drawn on — `goban` is a wooden
+   board, `diagram` is the same lines printed on the page.
+
+   No red and no blue survive the switch, anywhere on the page. Which is a
+   problem worth stating: black and white are the two colours a page cannot
+   lend, since one of them is always the paper. So nothing off the board is
+   drawn in either. The distinction is carried the way a Go book carries it,
+   by a mark being filled or hollow, which reads the same whichever way round
+   the page is: the labels counting from red's edges are solid, blue's are
+   outlined, and the stone list's dots follow. Both are drawn in the page's own
+   ink, so both stay legible in either colour scheme. */
+
+.dual .grid-line {
+  /* width is set on each line, so the checks can read it back */
+  stroke-linecap: round;
+}
+
+.dual .band {
+  stroke-width: 0.03;
+}
+
+/* Red plays black and blue plays white, edges included, so which pair of
+   sides a colour is joining can be read off the stones. */
+.dual .band-red,
+.dual .band-redp {
+  fill: #17140f;
+}
+
+.dual .band-blue,
+.dual .band-bluep {
+  fill: #f6f1e6;
+}
+
+/* Nothing is painted under a stone, but the hexagon is still the click target
+   and still the thing that lights up under the pointer. It has to keep a fill:
+   `none` would stop taking clicks, and the board would go dead without looking
+   any different. */
+.dual .hex {
+  fill: transparent;
+  stroke: none;
+}
+
+.dual .hex-marked {
+  fill: color-mix(in srgb, var(--accent) 26%, transparent);
+  stroke: var(--accent);
+  stroke-width: 0.14;
+}
+
+/* The last stone is ringed in the other colour, as a Go diagram marks it. */
+.dual .stone-last.stone-red {
+  stroke: #f4f1e8;
+  stroke-opacity: 1;
+  stroke-width: 0.1;
+}
+
+.dual .stone-last.stone-blue {
+  stroke: #4a423a;
+  stroke-opacity: 1;
+  stroke-width: 0.1;
+}
+
+.dual .stone-winning.stone-red,
+.dual .stone-winning.stone-blue {
+  stroke: var(--accent);
+  stroke-opacity: 1;
+  stroke-width: 0.16;
+}
+
+.dual .stone-label {
+  fill: #f8f4ec;
+}
+
+.dual .stone-label.on-blue {
+  fill: #1b1712;
+}
+
+/* Solid for the numbers counting from red's edges, outlined for blue's. */
+.dual .axis-red {
+  fill: var(--ink);
+}
+
+/* Outlined by stroking the glyphs themselves and painting the fill over the
+   inside half of that stroke, which is what `paint-order` buys: no second copy
+   of the text, no conversion to paths, and an outline of even thickness all
+   the way round. A grown copy behind will not do it — a glyph scaled about its
+   origin drifts as it grows, so the halo comes out lopsided.
+   The stroke has to be thin, and the stems only a little heavier than their
+   solid partner's to hold a counter open against it. Both were settled by
+   looking: at 700/0.08 the digits go clumsy, and below 500/0.055 the counters
+   close on a large board and the numbers read as grey rather than as hollow. */
+.dual .axis-blue {
+  fill: var(--panel);
+  stroke: var(--ink);
+  stroke-width: 0.055;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke;
+  font-weight: 500;
+}
+
+/* An outline has less ink in it than a solid glyph, so the far-edge line of
+   labels is stepped back less far here than it is beside the hexagons. */
+.dual .axis-alt {
+  opacity: 0.62;
+}
+
+/* --- both of them are wooden ---
+   The grid, the stones and the bands are the same on either; what differs is
+   how much of the page is board. `goban` lays a slab on it and prints the
+   coordinates outside, `full` runs the wood out to the frame and prints them
+   on it. */
+
+.wood-light {
+  stop-color: var(--wood);
+}
+
+.wood-deep {
+  stop-color: var(--wood-deep);
+}
+
+.dual .grid-line {
+  stroke: var(--grid);
+  opacity: 0.85;
+}
+
+.dual .star {
+  fill: var(--grid);
+}
+
+.dual .band {
+  stroke: rgba(24, 18, 8, 0.5);
+}
+
+.dual .cell:hover .hex {
+  fill: rgba(255, 255, 255, 0.18);
+}
+
+.dual .stone {
+  filter: drop-shadow(0.045px 0.09px 0.09px rgba(0, 0, 0, 0.45));
+}
+
+.dual .stone-red {
+  fill: url(#stone-black);
+  stroke: #000;
+  stroke-opacity: 0.5;
+  stroke-width: 0.02;
+}
+
+.dual .stone-blue {
+  fill: url(#stone-white);
+  stroke: #a99e89;
+  stroke-width: 0.025;
+}
+
+/* --- the slab --- */
+
+.wood {
+  fill: url(#goban-wood);
+  stroke: var(--wood-rim);
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0.08px 0.2px rgba(0, 0, 0, 0.38));
+}
+
+.sheen-black {
+  stop-color: #6a645d;
+}
+
+.body-black {
+  stop-color: #2b2723;
+}
+
+.rim-black {
+  stop-color: #0b0a09;
+}
+
+.sheen-white {
+  stop-color: #fff;
+}
+
+.body-white {
+  stop-color: #f7f2e8;
+}
+
+.rim-white {
+  stop-color: #cdc4b1;
 }
 
 .border {
@@ -414,6 +615,18 @@ text {
   background: var(--blue);
 }
 
+/* Off the board the two colours have to be told apart without them: filled for
+   black, a ring for white, the way a Go book does it. Both are the page's own
+   ink, so neither depends on which way round the page is. */
+body[data-dual] .dot-red {
+  background: var(--ink);
+}
+
+body[data-dual] .dot-blue {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+
 .status {
   margin: 0.7rem 0 0;
   min-height: 1.4em;
@@ -432,6 +645,11 @@ text {
 
 .status-blue {
   color: var(--blue);
+}
+
+body[data-dual] .status-red,
+body[data-dual] .status-blue {
+  color: var(--ink);
 }
 
 /* --- phones ---

@@ -25,8 +25,11 @@ stops being worth it, drop the mirror rather than letting them drift.
 python3 -m http.server 8000        # any static server; the page is the repo root
 node --test *.test.mjs             # unit tests: the notation and the URL format
 for c in checks/*.mjs; do node "$c" || break; done   # browser checks, see below
-npx prettier@3 --write .           # the formatting everything here is in
+npx prettier@3 --write .           # the formatting the code here is in
 ```
+
+Run prettier on the code, not on `*.md`: the prose here has never been through
+it, and letting it reflow the tables buries a real change in whitespace.
 
 CI runs the unit tests only. The browser checks need Chromium and are meant to
 be run by hand when the drawing or the interaction changes.
@@ -41,6 +44,7 @@ worth reading as much as running.
 | check | what it holds down |
 |---|---|
 | `labels.mjs` | every coordinate label stands exactly `GAP` off the edge it faces |
+| `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
@@ -83,12 +87,72 @@ measuring in the browser rather than nudging a number:
   the SVG's own units. Scaling the coordinate system up to make `cap` work was
   tried and reverted — it needed the scale republished to CSS as a custom
   property with a fallback, which put back the constant it was meant to remove.
+- The goban's row labels look wrong at `GAP` measured sideways, because that
+  board's flanks lean and a hexagon's do not: the same sideways step leaves
+  less room against a slanted edge than a square one. They are placed by the
+  clearance square on to the edge, and `reach()` says what the sideways step
+  has to be to buy it.
 - Label spacing looked ragged because the row labels were centred instead of
   anchored by the edge facing the board, and then because the offsets were
   measured to the *nearest* outline. On the sides that is the step above,
   receding diagonally, which always passes closer than the flank alongside;
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
+
+**The goban is another drawing of the same board, not another board.**
+`style` picks between the two in `render()`; everything else — the cells, the
+history, the URL, the hit testing — is shared and untouched. The go-style
+drawing hangs off the `dual` class. The hexagons are still there in it,
+transparent, because
+they are the click target and the Voronoi cell of the intersection, so pointing
+at one still names exactly one cell. `fill: transparent` rather than
+`fill: none`: `none` stops taking clicks, and the board would go dead without
+looking any different, which is what `checks/goban.mjs` ends by proving.
+
+**Nothing on a go-style board is red or blue, and that is a harder rule than
+it sounds.** On the board itself it is easy — red plays black, blue plays
+white, edges included, so which pair of sides a colour is joining can be read
+off the stones. Off the board it is not, because black and white are exactly
+the two colours a page cannot lend: one of them is always the paper, and which
+one depends on the colour scheme. Nothing outside the board is drawn in either.
+
+The device that replaces them is filled against hollow, which is how a Go book
+does it and is the one distinction that survives the page turning over: the
+coordinates counting from red's edges are solid, blue's are outlined in the
+page's own ink, and the stone list's dots are a disc and a ring.
+
+The outline is the browser's own, and it is worth knowing which of the three
+ways of asking for one this is. It is not a second copy of the text and not a
+conversion to paths: it is `stroke` on the `<text>` with `paint-order: stroke`,
+so the glyphs themselves are stroked and the fill then covers the inside half
+of that stroke, leaving an even outline all the way round.
+
+Put another way, stroking *is* a morphological dilation of the glyph by a disc,
+done in vector space, and that is the thing you actually want. The other two
+readings of "grow the letter and set it behind" both fail, and both were tried:
+
+- **Scaling it up** is not a dilation at all. A glyph scaled about its origin
+  drifts as it grows, so the halo comes out thick on one side and absent on the
+  other. Visibly wrong at a glance.
+- **`feMorphology operator="dilate"`** is a real dilation and is native, but its
+  structuring element is a rectangle and it works on the rasterised result, so
+  the diagonals come out stepped and the corners squared off. Blurring and
+  re-thresholding it softens that and leaves the thickness uneven. Both are
+  worse than the stroke at every board size.
+
+The weight and the stroke width were settled by looking at 13, 19 and 53 side
+by side: at `700`/`0.08` the digits go clumsy, and below `500`/`0.055` the
+counters close on the largest board and the numbers stop reading as hollow and
+start reading as grey. They sit at `500`/`0.055` with round joins.
+
+The rule is worth a check because it is easy to leave half-done — it caught a
+missed rename here, the stone list's dots having been keyed on each drawing's
+name. They hang off `body[data-dual]` now, so another go-style board needs no
+rule of its own. `goban.mjs` resolves `--red` and `--blue` through a probe
+element and then reads back every `color`, `fill`, `stroke`, `background` and
+`box-shadow` on the board and the panels beside it. It reads the hexagons first
+and insists on finding 151 of them there, so that a reading of zero means
+something.
 
 **The page carries no explanatory prose.** Everything is in `title` tooltips —
 the heading, each control, the board, each of the four names in the Cell panel.

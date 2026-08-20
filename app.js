@@ -13,6 +13,7 @@ const ui = {
   board: el("board"),
   size: el("size"),
   labels: el("labels"),
+  style: el("style"),
   numbers: el("numbers"),
   mode: el("mode"),
   pass: el("pass"),
@@ -140,6 +141,22 @@ function renderMoves() {
     <tbody>${rows}</tbody></table>`;
 }
 
+/**
+ * Who has won, in the vocabulary the board is currently drawn in. A go-style
+ * board has no red or blue on it to name, so the winner is named by the stones
+ * that are there and by the pair of sides they joined.
+ */
+const WON = {
+  hex: {
+    red: "Red has connected red to red'.",
+    blue: "Blue has connected blue to blue'.",
+  },
+  stones: {
+    red: "Black has connected top to bottom.",
+    blue: "White has connected left to right.",
+  },
+};
+
 function renderStatus() {
   const path = board.winningPath();
   if (!path.length) {
@@ -148,11 +165,23 @@ function renderStatus() {
     return;
   }
   const colour = board.stoneAt(path[0].col, path[0].row);
-  ui.status.textContent =
-    colour === "red"
-      ? "Red has connected red to red'."
-      : "Blue has connected blue to blue'.";
+  ui.status.textContent = WON[board.style === "hex" ? "hex" : "stones"][colour];
   ui.status.className = `status status-${colour}`;
+}
+
+/**
+ * Switch the drawing, and the page along with it: the stone list and the win
+ * message say red and blue beside the hexagons and black and white beside a
+ * board that has no red or blue on it.
+ */
+function setStyle(mode) {
+  document.body.dataset.style = mode;
+  // The panels only care whether the board is go-style at all, so they hang
+  // off this rather than off the name of the drawing. Naming each one in the
+  // stylesheet leaves a rule to forget every time another is added.
+  document.body.toggleAttribute("data-dual", mode !== "hex");
+  board.setStyle(mode);
+  renderStatus();
 }
 
 function setSize(size) {
@@ -211,6 +240,7 @@ function list(items) {
 
 ui.size.addEventListener("change", () => setSize(Number(ui.size.value)));
 ui.labels.addEventListener("change", () => board.setLabels(ui.labels.value));
+ui.style.addEventListener("change", () => setStyle(ui.style.value));
 ui.numbers.addEventListener("change", () => {
   board.setShowNumbers(ui.numbers.checked);
   writeHash();
@@ -301,6 +331,8 @@ function open(hash) {
   note = "That link could not be read.";
   refresh();
 }
+
+setStyle(ui.style.value);
 
 if (location.hash) {
   open(location.hash);
