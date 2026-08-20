@@ -161,42 +161,10 @@ function setSize(size) {
     Math.min(MAX_SIZE, Math.round(size) || DEFAULT_SIZE),
   );
   ui.size.value = clean;
-  if (clean === board.size) return; // the box was left as it was found
   board.setSize(clean);
   lastTouched = null;
   note = "";
   refresh();
-}
-
-/**
- * Take whatever size is in the box, without losing the click that reports it.
- *
- * A number input only reports a typed value when it loses focus, and what
- * takes the focus off it is the press that begins the next click on a cell.
- * The board is rebuilt on that press, which throws away the hexagon underneath
- * the pointer, and since a press is hit-tested before any handler runs there
- * is no rearranging that in time: the click lands on nothing and is dropped.
- * The first stone played after typing a size used to go missing that way, and
- * pressing again worked, which made it look like a click had been ignored.
- *
- * A mouse announces itself before it presses, so the size is taken as it
- * arrives over the board, a moment before the aim is settled, and the click
- * then plays on the board it asked for. A finger has no such moment — it
- * arrives and presses at once — so a size that turns up mid-press is held
- * until the press is over: the tap plays on the board that was on screen, and
- * the new size follows it in. Either way the tap counts for something.
- */
-let pressing = false;
-
-function commitSize() {
-  if (pressing) return;
-  setSize(Number(ui.size.value));
-}
-
-function release() {
-  if (!pressing) return;
-  pressing = false;
-  commitSize();
 }
 
 // --- URL state ------------------------------------------------------------
@@ -241,18 +209,7 @@ function list(items) {
 
 // --- wiring ---------------------------------------------------------------
 
-ui.size.addEventListener("change", commitSize);
-ui.board.addEventListener("pointerenter", (event) => {
-  if (event.pointerType === "mouse") commitSize();
-});
-ui.board.addEventListener("pointerdown", () => (pressing = true));
-// The click the press becomes puts its stone down first, this being the last
-// listener it passes; the board is rebuilt behind it. A press that never
-// becomes one — a right-click, a finger that slides off, a cancelled tap —
-// is caught by the two after it.
-ui.board.addEventListener("click", release);
-addEventListener("pointerup", () => setTimeout(release, 350));
-addEventListener("pointercancel", release);
+ui.size.addEventListener("change", () => setSize(Number(ui.size.value)));
 ui.labels.addEventListener("change", () => board.setLabels(ui.labels.value));
 ui.numbers.addEventListener("change", () => {
   board.setShowNumbers(ui.numbers.checked);

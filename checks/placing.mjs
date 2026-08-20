@@ -47,45 +47,4 @@ await check("Placing modes", async ({ open }) => {
   const after = await page.evaluate(() => location.hash);
   console.log(`  ${pad("alternate", 11)}${pad("click empty", 13)}-> ${after}`);
   if (after !== "#13,d10j9d5a1") throw new Error(`empty cell: got ${after}`);
-  await page.close();
-
-  // A size typed into the box is only reported when the box loses focus, and
-  // what takes the focus off it is the press that starts the next click. The
-  // board is rebuilt on that press, so the click used to land on a hexagon
-  // that no longer existed and be dropped: the first stone after a resize went
-  // missing. The mouse hands the size over as it arrives over the board, so
-  // the click plays on the board it asked for.
-  const resized = await open(START);
-  await resized.fill("#size", "21");
-  await resized.locator(".cells .cell").nth(0).click();
-  const played = await resized.evaluate(() => location.hash);
-  console.log(
-    `  ${pad("alternate", 11)}${pad("type 21, click", 13)}-> ${played}`,
-  );
-  if (played !== "#21,d10j9d5a1")
-    throw new Error(`after a resize: got ${played}`);
-  await resized.close();
-
-  // A finger arrives and presses at once, so there is no such moment: the size
-  // waits for the tap to be over instead. The stone goes where it was aimed on
-  // the board that was on screen, and the board changes size behind it.
-  const phone = await open(START, {
-    viewport: { width: 390, height: 844 },
-    isMobile: true,
-    hasTouch: true,
-  });
-  await phone.tap("#size");
-  await phone.keyboard.press("Control+a");
-  await phone.keyboard.type("21");
-  await phone.locator(".cells .cell").nth(0).tap();
-  await phone.waitForTimeout(80);
-  const tapped = await phone.evaluate(() => location.hash);
-  const grew = await phone.evaluate(
-    () => document.querySelectorAll(".cells .cell").length,
-  );
-  console.log(
-    `  ${pad("alternate", 11)}${pad("type 21, tap", 13)}-> ${tapped}  ${grew} cells`,
-  );
-  if (tapped !== "#21,d10j9d5a1") throw new Error(`after a tap: got ${tapped}`);
-  if (grew !== 21 * 21) throw new Error(`${grew} cells after the tap`);
 });
