@@ -308,14 +308,15 @@ main {
    of the text, no conversion to paths, and an outline of even thickness all
    the way round. A grown copy behind will not do it — a glyph scaled about its
    origin drifts as it grows, so the halo comes out lopsided.
-   The stroke has to be thin, and the stems only a little heavier than their
-   solid partner's to hold a counter open against it. Both were settled by
-   looking: at 700/0.08 the digits go clumsy, and below 500/0.055 the counters
-   close on a large board and the numbers read as grey rather than as hollow. */
+   The stems are only a little heavier than their solid partner's, enough to
+   hold a counter open against the stroke. Both settled by looking at 13, 19
+   and 53 side by side: at 700 the digits go clumsy, below 0.055 the outline
+   goes timid, and by 0.085 the counters have closed on the largest board and
+   the numbers read as grey rather than as hollow. */
 .dual .axis-blue {
   fill: var(--panel);
   stroke: var(--ink);
-  stroke-width: 0.055;
+  stroke-width: 0.07;
   stroke-linejoin: round;
   stroke-linecap: round;
   paint-order: stroke;

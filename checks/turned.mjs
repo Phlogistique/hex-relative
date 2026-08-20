@@ -20,6 +20,13 @@
  * bigger than the same board lying down on the same screen, since that is the
  * whole of why it turns.
  *
+ * Then that it stays turned, or stays lying down, while the reader scrolls. A
+ * phone slides its URL bar away as you scroll down and back as you scroll up,
+ * and `innerHeight` follows it either way with a resize each time. Measuring
+ * the room with that turned the board over mid-scroll on a screen near the
+ * size where the decision is close, which is the one bug this drawing has had
+ * that the reader meets by doing nothing at all.
+ *
  * Then the labels, which is the part the turn genuinely disturbs. Lying down, a
  * row's labels face a vertical flank and a column's face a level row of points;
  * turned, the hexagons are on their sides and it is the other way about, so
@@ -293,3 +300,68 @@ await check("Labels on the board turned upright", async ({ open }) => {
     `  (GAP ${GAP}, border ${BORDER}, wood ${WOOD}, half-width ${HALF_WIDTH.toFixed(3)})`,
   );
 });
+
+// What a URL bar actually does: `innerHeight` follows it and a resize fires,
+// while the layout viewport — what `svh` and `vh` resolve against — stays put.
+// `setViewportSize` moves both, so it cannot show this; redefining innerHeight
+// can, and does exactly what the bar does.
+const BAR = 96;
+
+// 390 by 690 is a phone near enough to the size where the board is in two
+// minds; the bar is worth more than the margin there, which is why it showed.
+const CLOSE = { width: 390, height: 690 };
+
+await check(
+  "A URL bar sliding away does not turn the board",
+  async ({ open }) => {
+    for (const style of ["hex", "goban"]) {
+      const page = await open("#13n,d10j9d5j4c2b5b8", {
+        viewport: CLOSE,
+        ...phone,
+      });
+      if (style !== "hex") {
+        await page.selectOption("#style", style);
+        await page.waitForTimeout(150);
+      }
+      const read = () =>
+        page.evaluate(() => {
+          const probe = document.createElement("div");
+          probe.style.cssText =
+            "position:fixed;height:100svh;width:0;visibility:hidden";
+          document.body.appendChild(probe);
+          const svh = probe.getBoundingClientRect().height;
+          probe.remove();
+          return {
+            way: document.querySelector("svg").dataset.orientation,
+            inner: innerHeight,
+            svh,
+          };
+        });
+
+      const before = await read();
+      await page.evaluate((bar) => {
+        Object.defineProperty(window, "innerHeight", {
+          value: innerHeight + bar,
+          configurable: true,
+        });
+        dispatchEvent(new Event("resize"));
+      }, BAR);
+      await page.waitForTimeout(200);
+      const after = await read();
+
+      console.log(
+        `  ${pad(style, 6)} bar out: innerHeight ${before.inner} to ${after.inner}, ` +
+          `svh ${before.svh} to ${after.svh}, board ${before.way} to ${after.way}`,
+      );
+      if (before.svh !== after.svh) {
+        throw new Error("svh moved with the bar, so this proves nothing");
+      }
+      if (before.way !== after.way) {
+        throw new Error(
+          `the board went ${before.way} to ${after.way} on the bar alone`,
+        );
+      }
+      await page.close();
+    }
+  },
+);

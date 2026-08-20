@@ -45,7 +45,9 @@ off the board is drawn in either. The two are told apart the way a Go book tells
 mark being filled or hollow, which reads the same whichever way round the page is: the coordinates
 counting from red's edges are solid and blue's are outlined, and the dots in the stone list are a
 disc and a ring. The win message says which pair of sides was joined rather than naming a colour
-that is no longer there.
+that is no longer there, and the placing menu offers `black only` and `white only`. Only what is
+printed changes: the cells, the history and the URL call the two red and blue whichever way the
+board is drawn.
 
 Both names of every row and column are printed on all four sides of the board: against the board the
 one measured from the nearer edge, running 1 up to about half the board and back down, and outside

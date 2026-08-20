@@ -52,7 +52,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `phone.mjs` | three screen sizes: no sideways overflow, panel above the fold |
-| `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear |
+| `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, and a URL bar sliding away does not turn it |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z |
 | `screenshots.mjs` | writes PNGs next to itself, for what only the eye can judge |
 
@@ -135,6 +135,22 @@ Three things are worth knowing before touching it:
   were meant to have had all along, `checks/goban.mjs` having measured to the
   anchor rather than to the nearest ink.
 
+**`innerHeight` is not the height of the screen on a phone.** It follows the
+URL bar, which slides away as you scroll down and comes back as you scroll up,
+and a resize fires each time. Measuring the room for the board with it turned
+the board over mid-scroll on a screen near the size where the decision is
+close — the one bug this drawing has had that a reader meets by doing nothing
+at all. `steadyHeight()` measures `100svh` through a probe instead: the layout
+viewport does not move with the bar, and `svh` is that viewport at its
+smallest, which is also the one the Cell panel has to fit in, the bar being out
+whenever the page is at the top.
+
+That is not reproducible by resizing the window, and the first attempt at a
+check was worthless for it: `setViewportSize` moves the layout viewport too, so
+`svh` moves with it and nothing is proved. The bar moves `innerHeight` alone.
+`checks/turned.mjs` redefines `window.innerHeight` and fires a resize, which is
+what the bar actually does, and refuses to pass if `svh` moved as well.
+
 **How much room the board has is measured, not assumed.** `app.js` compares the
 space left for the board with its own width and turns it if that pays, then
 caps its height at the room left above the Cell panel, which is where a tap's
@@ -190,16 +206,27 @@ readings of "grow the letter and set it behind" both fail, and both were tried:
 - **Scaling it up** is not a dilation at all. A glyph scaled about its origin
   drifts as it grows, so the halo comes out thick on one side and absent on the
   other. Visibly wrong at a glance.
-- **`feMorphology operator="dilate"`** is a real dilation and is native, but its
-  structuring element is a rectangle and it works on the rasterised result, so
-  the diagonals come out stepped and the corners squared off. Blurring and
-  re-thresholding it softens that and leaves the thickness uneven. Both are
-  worse than the stroke at every board size.
+- **`feMorphology operator="dilate"`** is a real dilation and is native, and it
+  is much the closer of the two: matched for thickness it is hard to tell from
+  the stroke at all. What sets them apart is that its structuring element is a
+  rectangle, so it grows a diagonal by `r√2` where it grows an upright by `r` —
+  which is also why it looks heavier than a stroke of nominally the same
+  radius, and why comparing the two without matching them first is misleading.
+  It also works on the rasterised result, so it does not survive being scaled,
+  and it costs a filter and a second copy of every label. The stroke is the
+  same idea for less.
 
 The weight and the stroke width were settled by looking at 13, 19 and 53 side
-by side: at `700`/`0.08` the digits go clumsy, and below `500`/`0.055` the
-counters close on the largest board and the numbers stop reading as hollow and
-start reading as grey. They sit at `500`/`0.055` with round joins.
+by side: at `700` the digits go clumsy, below `0.055` the outline goes timid,
+and by `0.085` the counters have closed on the largest board and the numbers
+stop reading as hollow and start reading as grey. They sit at `500`/`0.07`
+with round joins.
+
+The relabelling reaches the toolbar too: `red only` and `blue only` in the
+placing menu read `black only` and `white only` beside a goban. Only what is
+printed changes — the option values stay `red` and `blue`, since that is what
+the cells, the history and the URL call them whichever way the board is drawn,
+and `PLACING` in `app.js` sits beside `WON` so the two stay in step.
 
 The rule is worth a check because it is easy to leave half-done — it caught a
 missed rename here, the stone list's dots having been keyed on each drawing's
