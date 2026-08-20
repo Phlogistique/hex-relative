@@ -32,9 +32,18 @@ await check("On a phone", async ({ open }) => {
       scroll: document.documentElement.scrollWidth,
       client: document.documentElement.clientWidth,
       drawn: document.querySelector(".hex-board").dataset.orientation,
-      cell: Math.round(
-        document.querySelector(".cells .hex").getBoundingClientRect().width,
-      ),
+      // Centre to centre, which is the one measure of how big the board came
+      // out that means the same thing whichever way up the hexagons are.
+      cell: (() => {
+        const svg = document.querySelector(".hex-board");
+        const box = svg.getBoundingClientRect();
+        const view = svg.viewBox.baseVal;
+        const scale = Math.min(
+          box.width / view.width,
+          box.height / view.height,
+        );
+        return Math.round(Math.sqrt(3) * scale);
+      })(),
       board: Math.round(
         document.querySelector(".board").getBoundingClientRect().top,
       ),

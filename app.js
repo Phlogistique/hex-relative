@@ -200,11 +200,12 @@ function setStyle(mode) {
 /**
  * Which way round to draw the board, and how tall it may be.
  *
- * The two drawings are the same rhombus lying down and standing up, so their
- * shapes are each other's reciprocal: three to two against two to three. Which
- * of them to use is therefore not a question about the device but about the
- * space left for the board — whichever way that space leans, one of them fills
- * it and the other wastes most of it — so it is measured rather than asked.
+ * The two drawings are the same board in the same box, lying down and stood on
+ * its end, so their shapes are each other's transposed: three to two against
+ * two to three. Which of them to use is therefore not a question about the
+ * device but about the space left for the board — whichever way that space
+ * leans, one of them fills it and the other wastes most of it — so it is
+ * measured rather than asked.
  *
  * Nothing changes unless the board actually stands up: the cap is the
  * stylesheet's own until then.

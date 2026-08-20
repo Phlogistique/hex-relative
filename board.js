@@ -5,10 +5,10 @@
  * red joins the top and bottom edges, blue joins the left and right ones, and
  * the bottom red edge is the one we take our bearings from.
  *
- * That rhombus lies on its long diagonal and so comes out half again as wide
- * as it is tall, which is the wrong way round for a phone. `orientation:
- * "tall"` stands it up instead; see turned() for what that costs, which is
- * almost nothing.
+ * That rhombus comes out half again as wide as it is tall, which is the wrong
+ * way round for a phone. `orientation: "tall"` turns the whole drawing a
+ * twelfth of a turn, which stands the columns upright and puts the same board
+ * in the same box on its end; see turned().
  */
 import { column, distances } from "./mason.js";
 
@@ -37,24 +37,27 @@ const NEIGHBOURS = [
 ];
 
 /**
- * A sixth of a turn clockwise, which is the whole of the tall orientation.
+ * A twelfth of a turn clockwise, which is the whole of the tall orientation.
  *
- * A hexagon is its own sixth-turn, so this turns the board without disturbing
- * the tiling: the same cells, the same shapes, the same neighbours, and every
- * label still standing off the same edge by the same amount. Only the rhombus
- * moves, from lying on its long diagonal to standing on it, which is what buys
- * a narrow screen a bigger board.
+ * The rhombus has two sides running along the rows and two along the columns,
+ * sixty degrees apart, and it fills its own box exactly when one of those
+ * pairs stands square to the screen. Four turns do that; two of them leave the
+ * board upright; and of those two this is the one that keeps 11 in the bottom
+ * left corner, with the red edge falling away from it to 11' at the lowest
+ * point of all. The columns come upright, the rows lean down to the right, and
+ * the board's box is the wide one's stood on its end: no board is given away
+ * for the turn, which is what the other, prettier quarter-turn of the rhombus
+ * onto its long diagonal costs.
  *
- * Turned this way round, 1-1 keeps the bottom left, the red edge falling away
- * from it to 1-1' at the lowest point of all; 1'1 goes to the top.
+ * The hexagons come round with it and stand on their sides, points left and
+ * right rather than up and down. Everything else is a rotation and nothing
+ * else — the same cells, the same neighbours, the same names — so the only
+ * thing that has to be said twice in this file is how far a hexagon reaches,
+ * which is the other way about once it is on its side.
  */
 function turned(p) {
-  return { x: p.x / 2 - p.y * HALF_WIDTH, y: p.x * HALF_WIDTH + p.y / 2 };
+  return { x: p.x * HALF_WIDTH - p.y / 2, y: p.x / 2 + p.y * HALF_WIDTH };
 }
-
-// The same neighbours for a turned board. The turn carries each edge of the
-// hexagon onto the one before it, so the list slides round by one.
-const TURNED_NEIGHBOURS = NEIGHBOURS.map((_, k) => NEIGHBOURS[(k + 1) % 6]);
 
 // Every label keeps the same clear space from the board's outline, and the
 // second line of labels the same clear space from the first. Where they
@@ -119,9 +122,15 @@ export class HexBoard {
     return this.turn(center(col, row));
   }
 
-  /** The neighbour across each edge of a hexagon, in the same order. */
-  neighbours() {
-    return this.orientation === "tall" ? TURNED_NEIGHBOURS : NEIGHBOURS;
+  /**
+   * A hexagon's corners, turned with the board. The polygon turns as one, so
+   * edge k still faces NEIGHBOURS[k] whichever way round it is.
+   */
+  vertices() {
+    return VERTICES.map(([x, y]) => {
+      const { x: vx, y: vy } = this.turn({ x, y });
+      return [vx, vy];
+    });
   }
 
   /**
@@ -302,19 +311,24 @@ export class HexBoard {
     const { size } = this;
     const last = size - 1;
     const dual = this.style !== "hex";
-    // The board itself, outside edge of the border included. A hexagon reaches
-    // HALF_WIDTH sideways and 1 up and down from its centre whichever way the
-    // board is turned, the shape being its own sixth-turn, so the corners of
-    // the rhombus of centres carry the whole of it.
+    const hexagon = this.vertices();
+    // The board itself, outside edge of the border included: the corners of
+    // the rhombus of centres, grown by however far a hexagon reaches each way
+    // — which is not the same each way, and swaps over when the board turns.
     const corners = [
       [0, 0],
       [last, 0],
       [last, last],
       [0, last],
     ].map(([col, row]) => this.at(col, row));
+    const reach = (pick) => Math.max(...hexagon.map((v) => Math.abs(pick(v))));
     const board = dual
       ? boxOf(outline(size, WOOD, this.turn))
-      : stretch(boxOf(corners), HALF_WIDTH + BORDER_WIDTH, 1 + BORDER_WIDTH);
+      : stretch(
+          boxOf(corners),
+          reach((v) => v[0]) + BORDER_WIDTH,
+          reach((v) => v[1]) + BORDER_WIDTH,
+        );
 
     const svg = document.createElementNS(SVG_NS, "svg");
     setViewBox(svg, board);
@@ -341,13 +355,14 @@ export class HexBoard {
     }
 
     this.cells = new Map();
+    const points = hexagon.map(([x, y]) => `${x},${y}`).join(" ");
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
-        cellLayer.appendChild(this.buildCell(col, row));
+        cellLayer.appendChild(this.buildCell(col, row, points));
       }
     }
     if (dual) this.buildBands(edgeLayer);
-    else this.buildEdges(edgeLayer);
+    else this.buildEdges(edgeLayer, hexagon);
     const labels = this.buildLabels(labelLayer);
 
     this.svg = svg;
@@ -358,17 +373,14 @@ export class HexBoard {
     this.paint();
   }
 
-  buildCell(col, row) {
+  buildCell(col, row, points) {
     const { x, y } = this.at(col, row);
     const g = document.createElementNS(SVG_NS, "g");
     g.setAttribute("class", "cell");
     g.setAttribute("transform", `translate(${x} ${y})`);
 
     const hex = document.createElementNS(SVG_NS, "polygon");
-    hex.setAttribute(
-      "points",
-      VERTICES.map(([vx, vy]) => `${vx},${vy}`).join(" "),
-    );
+    hex.setAttribute("points", points);
     hex.setAttribute("class", "hex");
     g.appendChild(hex);
 
@@ -397,18 +409,17 @@ export class HexBoard {
   }
 
   /** Thick coloured borders: every hex edge with no neighbour behind it. */
-  buildEdges(layer) {
+  buildEdges(layer, hexagon) {
     const { size } = this;
-    const neighbours = this.neighbours();
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
         const { x, y } = this.at(col, row);
         for (let k = 0; k < 6; k++) {
-          const [dc, dr] = neighbours[k];
+          const [dc, dr] = NEIGHBOURS[k];
           const side = outsideSide(col + dc, row + dr, size);
           if (!side) continue;
-          const [ax, ay] = VERTICES[k];
-          const [bx, by] = VERTICES[(k + 1) % 6];
+          const [ax, ay] = hexagon[k];
+          const [bx, by] = hexagon[(k + 1) % 6];
           // Shift the segment out along its own normal by half the stroke, so
           // the whole width of it lies beyond the cell.
           const mx = (ax + bx) / 2;
@@ -581,25 +592,35 @@ export class HexBoard {
    * side's labels face, as its outward normal and how far past the outermost
    * cell centres it stands, and the step out of the board the line follows.
    *
-   * The step is not the normal. A column's labels follow the column, which
-   * slopes, while the edge they face is the row of points at the end of it; a
-   * row's step is sideways, while the wooden board's flank leans away from it.
-   * So what a step buys in clearance is one projected on the other, and that
-   * is the same projection whichever way the board is turned.
+   * Neither of the two is what the other suggests. A line of labels sits on
+   * the continuation of its own row or column, so its step is that row's or
+   * that column's own direction, sloping or not. What it faces is the outline:
+   * on the hexagons that is how far the outermost cells reach, measured square
+   * on to the screen, the outline being a zigzag whose points are what a label
+   * has to clear; on the wooden board it is a real edge, which leans as the
+   * board does. What a step buys in clearance is then the one projected on the
+   * other, and both are already turned.
    */
   faces() {
     const hex = this.style === "hex";
-    // Outward from the right-hand side of the board, and from the top of it.
-    const flank = hex ? { x: 1, y: 0 } : { x: HALF_WIDTH, y: -0.5 };
-    const end = { x: 0, y: -1 };
-    const out = hex
-      ? { flank: HALF_WIDTH + BORDER_WIDTH, end: 1 + BORDER_WIDTH }
-      : { flank: WOOD, end: WOOD };
+    const tall = this.orientation === "tall";
+    // A pointy-top hexagon reaches HALF_WIDTH sideways and 1 up and down; the
+    // turn stands it on its side and it reaches the other way about.
+    const flank = {
+      normal: hex ? { x: 1, y: 0 } : this.turn({ x: HALF_WIDTH, y: -0.5 }),
+      out: hex ? (tall ? 1 : HALF_WIDTH) + BORDER_WIDTH : WOOD,
+    };
+    const end = {
+      normal: hex ? { x: 0, y: -1 } : this.turn({ x: 0, y: -1 }),
+      out: hex ? (tall ? HALF_WIDTH : 1) + BORDER_WIDTH : WOOD,
+    };
+    const row = this.turn({ x: 1, y: 0 }); // along a row, to the right
+    const column = this.turn({ x: SLANT, y: 1 }); // down a column
     return {
-      left: { normal: back(flank), out: out.flank, step: { x: -1, y: 0 } },
-      right: { normal: flank, out: out.flank, step: { x: 1, y: 0 } },
-      top: { normal: end, out: out.end, step: { x: -SLANT, y: -1 } },
-      bottom: { normal: back(end), out: out.end, step: { x: SLANT, y: 1 } },
+      left: { ...flank, normal: back(flank.normal), step: back(row) },
+      right: { ...flank, step: row },
+      top: { ...end, step: back(column) },
+      bottom: { ...end, normal: back(end.normal), step: column },
     };
   }
 
@@ -649,8 +670,7 @@ export class HexBoard {
       const inner = pick(side, 0);
       if (!inner.length) continue;
       const face = faces[side];
-      const normal = this.turn(face.normal);
-      const step = this.turn(face.step);
+      const { normal, step } = face;
       const per = step.x * normal.x + step.y * normal.y; // clearance per step
       const anchor =
         normal.x < -1e-9 ? "end" : normal.x > 1e-9 ? "start" : "middle";

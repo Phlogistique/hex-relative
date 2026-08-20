@@ -52,13 +52,14 @@ one measured from the nearer edge, running 1 up to about half the board and back
 it, smaller and fainter, the one measured from the far edge. Each label line follows the slant of
 the rhombus, sitting on the continuation of its own column.
 
-Where the room left for the board is taller than it is wide — a phone held upright — the board is
-turned a sixth of a turn and stands on its long diagonal instead of lying on it, which is worth
-about half again as much board on the same screen. It is the same drawing and not a second one: a
-hexagon is its own sixth-turn, so the cells keep their shapes, their neighbours and their names, and
-`11` keeps the bottom left corner with the red edge falling away from it to `11'` at the lowest
-point of all. Which way round it is drawn follows from measuring that room, the Cell panel keeping
-its own place under the board, so a wide window is left exactly as it was.
+Where the room left for the board is taller than it is wide — a phone held upright — the whole
+drawing is turned a twelfth of a turn clockwise. The columns come upright, the rows lean down to the
+right, the hexagons end up on their sides, and the board sits in the same box stood on its end,
+which is worth about a third again on the cells of a phone. `11` keeps the bottom left corner, with
+the red edge falling away from it to `11'` at the lowest point of all. It is the same board and not
+a second one: the cells keep their neighbours and their names, and a tap still lands where it looks.
+Which way round it is drawn follows from measuring that room, the Cell panel keeping its own place
+under the board, so a wide window is left exactly as it was.
 
 Tap or click to place a stone and again to take it off; shift-click or long-press erases. The
 `nothing (just name cells)` mode reads the board without changing it, which is how you name cells on
