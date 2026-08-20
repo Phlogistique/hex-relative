@@ -5,7 +5,7 @@
  * red joins the top and bottom edges, blue joins the left and right ones, and
  * the bottom red edge is the one we take our bearings from.
  */
-import { distances, standard } from "./mason.js";
+import { column, distances } from "./mason.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const HALF_WIDTH = Math.sqrt(3) / 2;
@@ -349,7 +349,7 @@ export class HexBoard {
 
     for (let col = 0; col < size; col++) {
       if (!relative) {
-        const letter = standard(col, 0)[0];
+        const letter = column(col);
         add("top", 0, col, letter, "axis");
         add("bottom", 0, col, letter, "axis");
         continue;

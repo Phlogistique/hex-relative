@@ -3,7 +3,7 @@ import { parse, relative, standard, variants } from "./mason.js";
 import { formatHash, parseHash } from "./url.js";
 
 const DEFAULT_SIZE = 13;
-const MAX_SIZE = 26;
+const MAX_SIZE = 53; // hexworld refuses anything larger too
 
 // The diagram from the wiki page, so the naming can be checked at a glance.
 const WIKI_EXAMPLE = "#13n,d10j9d5j4c2b5b8";

@@ -6,7 +6,15 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { distances, format, parse, relative, standard, variants } from "./mason.js";
+import {
+  column,
+  distances,
+  format,
+  parse,
+  relative,
+  standard,
+  variants,
+} from "./mason.js";
 
 /** The 13x13 diagram from the wiki: stone label -> cell -> expected name. */
 const WIKI = [
@@ -20,7 +28,10 @@ const WIKI = [
 ];
 
 const LETTERS = "abcdefghijklmnopqrstuvwxyz";
-const cellOf = (s) => ({ col: LETTERS.indexOf(s[0]), row: Number(s.slice(1)) - 1 });
+const cellOf = (s) => ({
+  col: LETTERS.indexOf(s[0]),
+  row: Number(s.slice(1)) - 1,
+});
 
 test("names the wiki's 13x13 example stones", () => {
   for (const { label, cell, name } of WIKI) {
@@ -37,15 +48,31 @@ test("b8 is also nameable as 8' 2, the form the wiki prefers in context", () => 
 });
 
 test("parses every name back to the cell it came from", () => {
-  for (const size of [3, 5, 11, 13, 14, 19]) {
+  for (const size of [3, 5, 11, 13, 14, 19, 27, 53]) {
     for (let col = 0; col < size; col++) {
       for (let row = 0; row < size; row++) {
         for (const v of variants(col, row, size)) {
-          assert.deepEqual(parse(v.text, size), { col, row }, `${v.text} on ${size}x${size}`);
+          assert.deepEqual(
+            parse(v.text, size),
+            { col, row },
+            `${v.text} on ${size}x${size}`,
+          );
         }
         assert.deepEqual(parse(standard(col, row), size), { col, row });
       }
     }
+  }
+});
+
+test("columns past the 26th are lettered the way hexworld letters them", () => {
+  assert.equal(column(0), "a");
+  assert.equal(column(25), "z");
+  assert.equal(column(26), "aa"); // not "z1", and not back round to "a"
+  assert.equal(column(51), "az");
+  assert.equal(column(52), "ba"); // the last column of the largest board, 53x53
+  assert.equal(standard(52, 52), "ba53");
+  for (let col = 0; col < 53; col++) {
+    assert.deepEqual(parse(standard(col, 0), 53), { col, row: 0 }, column(col));
   }
 });
 
@@ -75,6 +102,7 @@ test("rejects malformed and off-board input", () => {
   assert.equal(parse("0-4", 13), null);
   assert.equal(parse("", 13), null);
   assert.equal(parse("z9", 13), null);
+  assert.equal(parse("aa1", 13), null); // a real column name, off a small board
   assert.equal(parse("4x4", 13), null);
 });
 

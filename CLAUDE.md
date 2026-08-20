@@ -48,6 +48,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `phone.mjs` | three screen sizes: no sideways overflow, panel above the fold |
+| `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z |
 | `screenshots.mjs` | writes PNGs next to itself, for what only the eye can judge |
 
 `checks/lib/browser.mjs` holds the plumbing: it serves the repository itself,
@@ -118,6 +119,8 @@ then look for:
 | `u.C="swap-pieces"`, `o.prototype.C` | `:s` reflects the board across its long diagonal and inverts every colour — the pie rule, and its own undo |
 | `u.U="swap-sides"`, `o.prototype.U` | `:S` only toggles a CSS class, so it is a display relabel and is read past here |
 | `It=function` | the test on their swap button: cursor at 1 and the opening move a placement, which is the rule copied here |
+| `c.prototype.rt`, `53<t.files` | where their board sizes stop, and so where this one stops |
+| `e.toString`, `e.q` | column names past the 26th: bijective base 26, `z aa ab`, not a repeated letter |
 
 Do not commit that file.
 

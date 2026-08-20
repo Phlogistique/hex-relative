@@ -82,7 +82,7 @@ its own (`#9:ra1,rb1`) is still read, so links shared before are not broken.
 | `app.js` | UI wiring: toolbar, readout, stone list, history |
 | `mason.test.mjs` | checks against every worked example on the wiki page |
 | `url.test.mjs` | checks the fragment against hexworld's format |
-| `checks/` | browser checks: layout, clicking, history, phones — see `CLAUDE.md` |
+| `checks/` | browser checks: layout, clicking, history, phones, the largest board — see `CLAUDE.md` |
 
 `mason.js` and `url.js` have no dependencies and no DOM references, so either can be reused
 on its own.
@@ -113,6 +113,12 @@ the only workflow runs the tests.
 Pointy-top hexagons in a rhombus, in HexWiki's orientation: red joins top to bottom, blue joins left
 to right. Columns are lettered `a`… from the left, rows numbered `1`… from the top, so standard
 coordinates such as `d10` agree with HexWiki and hexworld.org.
+
+Boards run from 2×2 to 53×53, which is as far as hexworld goes as well. Past the 26th column the
+letters double, in hexworld's spelling: `…y z aa ab …az ba`, so the far corner of the largest board
+is `ba53`. Relative coordinates need no such thing — they are distances, so that corner is `1'1'`
+whatever the board size. A 53×53 board comes out about ten pixels to the cell on a laptop screen,
+and is not much use on a phone.
 
 ## Credits
 
