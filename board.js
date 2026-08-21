@@ -68,6 +68,11 @@ const LINE_GAP = 0.5;
 const PAD = 0.15; // a little air beyond the outermost labels
 
 const BORDER_WIDTH = 0.3;
+// A band of that width mitred along the outside of a hexagon's edges is the
+// hexagon grown by it: every vertex is pushed out along its own radius, which
+// bisects the two edges' normals and so stands 30 degrees off each. So the
+// band reaches this much further out than the hexagon in every direction.
+const OUTSET = 1 + (BORDER_WIDTH * 2) / Math.sqrt(3);
 
 // --- the go-style boards ---
 // The same board drawn as the tiling's dual: the cell centres become the
@@ -389,13 +394,14 @@ export class HexBoard {
       [last, last],
       [0, last],
     ].map(([col, row]) => this.at(col, row));
-    const reach = (pick) => Math.max(...hexagon.map((v) => Math.abs(pick(v))));
+    const reach = (pick) =>
+      OUTSET * Math.max(...hexagon.map((v) => Math.abs(pick(v))));
     const board = dual
       ? boxOf(outline(size, WOOD, this.turn))
       : stretch(
           boxOf(corners),
-          reach((v) => v[0]) + BORDER_WIDTH,
-          reach((v) => v[1]) + BORDER_WIDTH,
+          reach((v) => v[0]),
+          reach((v) => v[1]),
         );
 
     const svg = document.createElementNS(SVG_NS, "svg");
@@ -430,7 +436,7 @@ export class HexBoard {
       }
     }
     if (dual) this.buildBands(edgeLayer);
-    else this.buildEdges(edgeLayer, hexagon);
+    else this.buildEdges(edgeLayer);
     const labels = this.buildLabels(labelLayer);
 
     this.svg = svg;
@@ -476,33 +482,113 @@ export class HexBoard {
     return g;
   }
 
-  /** Thick coloured borders: every hex edge with no neighbour behind it. */
-  buildEdges(layer, hexagon) {
+  /**
+   * The board's outline as one cycle of hexagon edges chained end to end:
+   * every edge with no cell behind it, in the order they run round the board.
+   */
+  outlineCycle() {
     const { size } = this;
+    const hexagon = this.vertices();
+    const key = (p) => `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+    const from = new Map(); // where an edge starts -> that edge
     for (let row = 0; row < size; row++) {
       for (let col = 0; col < size; col++) {
         const { x, y } = this.at(col, row);
+        const corner = (k) => ({ x: x + hexagon[k][0], y: y + hexagon[k][1] });
         for (let k = 0; k < 6; k++) {
           const [dc, dr] = NEIGHBOURS[k];
-          const side = outsideSide(col + dc, row + dr, size);
-          if (!side) continue;
-          const [ax, ay] = hexagon[k];
-          const [bx, by] = hexagon[(k + 1) % 6];
-          // Shift the segment out along its own normal by half the stroke, so
-          // the whole width of it lies beyond the cell.
-          const mx = (ax + bx) / 2;
-          const my = (ay + by) / 2;
-          const out = BORDER_WIDTH / 2 / Math.hypot(mx, my);
-          const line = document.createElementNS(SVG_NS, "line");
-          line.setAttribute("x1", x + ax + mx * out);
-          line.setAttribute("y1", y + ay + my * out);
-          line.setAttribute("x2", x + bx + mx * out);
-          line.setAttribute("y2", y + by + my * out);
-          line.setAttribute("stroke-width", BORDER_WIDTH);
-          line.setAttribute("class", `border border-${side}`);
-          layer.appendChild(line);
+          if (outsideSide(col + dc, row + dr, size))
+            from.set(key(corner(k)), { a: corner(k), b: corner((k + 1) % 6) });
         }
       }
+    }
+    const start = from.values().next().value;
+    const cycle = [start];
+    for (
+      let at = from.get(key(start.b));
+      at !== start;
+      at = from.get(key(at.b))
+    )
+      cycle.push(at);
+    return cycle;
+  }
+
+  /**
+   * The coloured edges: four bands running along the board's own zigzag
+   * outline, each one polygon rather than a segment per hexagon edge, so that
+   * the joins between segments are joins.
+   *
+   * A band stops where the outline reaches furthest along its corner's
+   * bisector. At a sharp corner that is one vertex; at a blunt one an edge
+   * stands square to the bisector, both its ends reach as far, and the two
+   * colours halve it. Either way both bands stop on the same point and are
+   * cut along the same line, so neither overruns the other.
+   */
+  buildEdges(layer) {
+    const cycle = this.outlineCycle();
+    const all = sides(this.size, this.turn);
+    const corners = all.map((s, k) => {
+      const next = all[(k + 1) % 4];
+      const bx = s.normal.x + next.normal.x;
+      const by = s.normal.y + next.normal.y;
+      const reach = cycle.map((e) => e.a.x * bx + e.a.y * by);
+      const furthest = Math.max(...reach);
+      // Which edge of the cycle the corner falls on, and whether in its middle.
+      const [first, second] = reach.flatMap((r, i) =>
+        r > furthest - 1e-9 ? [i] : [],
+      );
+      const halved = second !== undefined;
+      return {
+        edges: [s.edge, next.edge],
+        at: !halved || second - first === 1 ? first : second,
+        halved,
+      };
+    });
+
+    // Halve the edges a blunt corner falls in the middle of, so that every
+    // colour change lands on a vertex the two bands can share.
+    const pieces = [];
+    cycle.forEach((edge, i) => {
+      const corner = corners.find((c) => c.at === i);
+      const mid = corner?.halved && {
+        x: (edge.a.x + edge.b.x) / 2,
+        y: (edge.a.y + edge.b.y) / 2,
+      };
+      if (mid) pieces.push({ a: edge.a, b: mid });
+      if (corner) corner.from = pieces.length;
+      pieces.push(mid ? { a: mid, b: edge.b } : edge);
+    });
+
+    const count = pieces.length;
+    const normals = pieces.map(({ a, b }) => {
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      return { x: -(b.y - a.y) / len, y: (b.x - a.x) / len };
+    });
+    // Where a piece's start ends up once the outline is pushed `d` outwards.
+    const grown = (i, d) =>
+      pushed(
+        pieces[i % count].a,
+        normals[(i + count - 1) % count],
+        normals[i % count],
+        d,
+      );
+
+    const order = [...corners].sort((p, q) => p.from - q.from);
+    for (const [k, corner] of order.entries()) {
+      const next = order[(k + 1) % order.length];
+      const stop = next.from > corner.from ? next.from : next.from + count;
+      const inner = [];
+      const outer = [];
+      for (let i = corner.from; i <= stop; i++) {
+        inner.push(grown(i, 0));
+        outer.push(grown(i, BORDER_WIDTH));
+      }
+      const band = document.createElementNS(SVG_NS, "polygon");
+      band.setAttribute("points", pointsOf(inner.concat(outer.reverse())));
+      // The side the run belongs to is the one its two corners have in common.
+      const edge = corner.edges.find((e) => next.edges.includes(e));
+      band.setAttribute("class", `border border-${edge}`);
+      layer.appendChild(band);
     }
   }
 
@@ -676,11 +762,11 @@ export class HexBoard {
     // turn stands it on its side and it reaches the other way about.
     const flank = {
       normal: hex ? { x: 1, y: 0 } : this.turn({ x: HALF_WIDTH, y: -0.5 }),
-      out: hex ? (tall ? 1 : HALF_WIDTH) + BORDER_WIDTH : WOOD,
+      out: hex ? (tall ? 1 : HALF_WIDTH) * OUTSET : WOOD,
     };
     const end = {
       normal: hex ? { x: 0, y: -1 } : this.turn({ x: 0, y: -1 }),
-      out: hex ? (tall ? HALF_WIDTH : 1) + BORDER_WIDTH : WOOD,
+      out: hex ? (tall ? HALF_WIDTH : 1) * OUTSET : WOOD,
     };
     const row = this.turn({ x: 1, y: 0 }); // along a row, to the right
     const column = this.turn({ x: SLANT, y: 1 }); // down a column

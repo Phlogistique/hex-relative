@@ -412,19 +412,14 @@ main {
   stop-color: #cdc4b1;
 }
 
-.border {
-  /* width is set on each segment, since the geometry depends on it */
-  stroke-linecap: round;
-}
-
 .border-red,
 .border-redp {
-  stroke: var(--red);
+  fill: var(--red);
 }
 
 .border-blue,
 .border-bluep {
-  stroke: var(--blue);
+  fill: var(--blue);
 }
 
 text {
