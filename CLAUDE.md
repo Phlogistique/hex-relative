@@ -9,15 +9,10 @@ working on it.
 
 ## Where it lives
 
-`Phlogistique/hex-relative` is the real repository. `main` is served straight
+`Phlogistique/hex-relative` is the repository. `main` is served straight
 by GitHub Pages (Settings → Pages → Deploy from a branch → `main` / `/ (root)`),
 so a push is a deploy, and the site is at
 <https://phlogistique.github.io/hex-relative/>.
-
-`Phlogistique/random` carries a byte-identical copy under `hex/` on the branch
-`claude/hex-mason-relative-coords-5qiwp8`. It is a mirror and nothing more —
-the work happened here first and was copied across. If keeping the two in step
-stops being worth it, drop the mirror rather than letting them drift.
 
 ## Running it
 
@@ -319,8 +314,6 @@ Do not commit that file.
 
 ## Loose ends
 
-- `Phlogistique/random`'s pull request #1 was closed as superseded; the work is
-  here.
 - Passes and swaps have buttons, but hexworld's resignation and forfeit
   (`:rb :rw :fb :fw`) are read past with a note rather than modelled.
 - Boards are square only. hexworld's oblong ones are refused, and the page says
