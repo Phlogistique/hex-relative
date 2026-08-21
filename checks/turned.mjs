@@ -40,7 +40,9 @@ import { relative } from "../mason.js";
 // All four must match board.js.
 const GAP = 0.55;
 const BORDER = 0.3; // BORDER_WIDTH
-const MITRE = (BORDER * 2) / Math.sqrt(3); // how far past a point it mitres
+// How much further out a mitred band of that width reaches than the hexagon
+// it runs along: OUTSET in board.js.
+const OUTSET = 1 + (BORDER * 2) / Math.sqrt(3);
 const WOOD = 1.85;
 const HALF_WIDTH = Math.sqrt(3) / 2;
 
@@ -94,10 +96,7 @@ function drawing() {
  */
 function clearances() {
   const H = Math.sqrt(3) / 2;
-  const [BORDER, WOOD] = [0.3, 1.85];
-  // A hexagon reaches 1 towards its points and H towards its flats; the band
-  // beyond stands BORDER off a flat, and mitres this far past a point.
-  const [point, flat] = [1 + (BORDER * 2) / Math.sqrt(3), H + BORDER];
+  const [OUTSET, WOOD] = [1 + (0.3 * 2) / Math.sqrt(3), 1.85];
   const size = Number(document.getElementById("size").value);
   const last = size - 1;
   const svg = document.querySelector(".hex-board");
@@ -112,11 +111,11 @@ function clearances() {
 
   const flank = {
     normal: hex ? { x: 1, y: 0 } : turn({ x: H, y: -0.5 }),
-    out: hex ? (tall ? point : flat) : WOOD,
+    out: hex ? (tall ? 1 : H) * OUTSET : WOOD,
   };
   const end = {
     normal: hex ? { x: 0, y: -1 } : turn({ x: 0, y: -1 }),
-    out: hex ? (tall ? flat : point) : WOOD,
+    out: hex ? (tall ? H : 1) * OUTSET : WOOD,
   };
   const faces = {
     left: { ...flank, normal: back(flank.normal), cell: (i) => [0, i] },
@@ -301,8 +300,7 @@ await check("Labels on the board turned upright", async ({ open }) => {
     await page.close();
   }
   console.log(
-    `  (GAP ${GAP}, border ${BORDER}, mitre ${MITRE.toFixed(3)}, wood ${WOOD}, ` +
-      `half-width ${HALF_WIDTH.toFixed(3)})`,
+    `  (GAP ${GAP}, border ${BORDER}, outset ${OUTSET.toFixed(3)}, wood ${WOOD}, half-width ${HALF_WIDTH.toFixed(3)})`,
   );
 });
 

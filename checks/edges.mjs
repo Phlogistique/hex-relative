@@ -1,18 +1,22 @@
 /**
  * The four coloured edges of the hexagon board, as geometry rather than by eye.
  *
- * They used to be drawn a segment at a time, each shifted out along its own
+ * They were drawn a segment at a time once, each shifted out along its own
  * normal and capped round, which left a knob at every point of the zigzag and
  * a notch in every valley, and let whichever colour happened to be drawn last
  * overrun the other at the corners. They are four bands now, and what says so
  * is that the outline they describe closes: each band's ends land exactly on
- * its neighbours', and every corner of the outer face stands exactly
+ * another band's, and every corner of the outer face stands exactly
  * BORDER_WIDTH off both of the edges meeting there — a knob is ink further out
  * than that, a notch is ink not as far.
  *
  * The last measure is the one the eye complained about first: red and blue
  * take the same length of outline, which is only true if every corner of the
  * board is halved between them.
+ *
+ * Nothing here is told which way round a band was written down, or which of
+ * its two chains is the outer one; both are read off the drawing. What is
+ * measured is the shape, not the order the points happen to be in.
  */
 import { check, pad } from "./lib/browser.mjs";
 
@@ -23,49 +27,73 @@ const SLOP = 1e-4;
 
 /** What the four bands come out at, read off the drawing. */
 function bands() {
-  // A band is its outer face followed by its inner one, walked back.
-  const bands = [...document.querySelectorAll(".border")].map((band) => {
-    const points = [...band.points].map((p) => ({ x: p.x, y: p.y }));
-    const half = points.length / 2;
-    return {
-      edge: band.getAttribute("class").replace("border border-", ""),
-      outer: points.slice(0, half),
-      inner: points.slice(half).reverse(),
-    };
-  });
-
   const apart = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  // How far the bands are from joining up: every end against its neighbour's.
-  let gap = 0;
-  bands.forEach((band, i) => {
-    const next = bands[(i + 1) % bands.length];
-    const end = (chain) => chain[chain.length - 1];
-    gap = Math.max(gap, apart(end(band.outer), next.outer[0]));
-    gap = Math.max(gap, apart(end(band.inner), next.inner[0]));
-  });
+  const all = [...document.querySelectorAll(".border")].map((band) => ({
+    edge: band.getAttribute("class").replace("border border-", ""),
+    points: [...band.points].map((p) => ({ x: p.x, y: p.y })),
+  }));
 
-  // The one outline the four of them describe, each join counted once.
-  const ring = (pick) => bands.flatMap((b) => pick(b).slice(0, -1));
-  const inner = ring((b) => b.inner);
-  const outer = ring((b) => b.outer);
-  // What each corner of the outer face stands off the edges meeting there.
+  // A band is two chains of equal length, one laid back along the other; the
+  // one further from the middle of the board is the outer face.
+  const every = all.flatMap((b) => b.points);
+  const middle = {
+    x: every.reduce((sum, p) => sum + p.x, 0) / every.length,
+    y: every.reduce((sum, p) => sum + p.y, 0) / every.length,
+  };
+  const outward = (chain) =>
+    chain.reduce((sum, p) => sum + apart(p, middle), 0) / chain.length;
+  for (const band of all) {
+    const half = band.points.length / 2;
+    const chains = [band.points.slice(0, half), band.points.slice(half)];
+    if (outward(chains[0]) > outward(chains[1])) chains.reverse();
+    [band.inner, band.outer] = [chains[0], chains[1].reverse()];
+  }
+
+  // Every end of every band has to land on another band's, in both its faces.
+  const ends = all.flatMap((band, i) =>
+    [0, band.inner.length - 1].map((at) => ({
+      i,
+      inner: band.inner[at],
+      outer: band.outer[at],
+    })),
+  );
+  const gap = Math.max(
+    ...ends.map((end) =>
+      Math.min(
+        ...ends
+          .filter((other) => other.i !== end.i)
+          .map((other) =>
+            Math.max(
+              apart(end.inner, other.inner),
+              apart(end.outer, other.outer),
+            ),
+          ),
+      ),
+    ),
+  );
+
+  // What each corner of the outer face stands off the edges meeting there. The
+  // pair a band lacks at either end is the neighbouring band's to measure.
   const stands = [];
-  for (let i = 0; i < inner.length; i++) {
-    for (const [a, b] of [
-      [inner[(i + inner.length - 1) % inner.length], inner[i]],
-      [inner[i], inner[(i + 1) % inner.length]],
-    ]) {
-      const [dx, dy] = [b.x - a.x, b.y - a.y];
-      const len = Math.hypot(dx, dy);
-      // Walked clockwise, so the outward normal is the direction turned left.
-      stands.push(((outer[i].x - a.x) * dy - (outer[i].y - a.y) * dx) / len);
-    }
+  for (const band of all) {
+    band.inner.forEach((_, i) => {
+      for (const [a, b] of [
+        [band.inner[i - 1], band.inner[i]],
+        [band.inner[i], band.inner[i + 1]],
+      ]) {
+        if (!a || !b) continue;
+        const [dx, dy] = [b.x - a.x, b.y - a.y];
+        const across =
+          (band.outer[i].x - a.x) * dy - (band.outer[i].y - a.y) * dx;
+        stands.push(Math.abs(across) / Math.hypot(dx, dy));
+      }
+    });
   }
 
   const length = (chain) =>
     chain.slice(1).reduce((sum, p, i) => sum + apart(p, chain[i]), 0);
   const owns = {};
-  for (const band of bands) {
+  for (const band of all) {
     const colour = band.edge.startsWith("red") ? "red" : "blue";
     owns[colour] = (owns[colour] ?? 0) + length(band.inner);
   }

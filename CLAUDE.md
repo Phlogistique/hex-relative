@@ -96,31 +96,6 @@ measuring in the browser rather than nudging a number:
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
 
-**The coloured edges are four bands, not one shape per hexagon edge.** They
-were drawn a segment at a time once, each shifted out along its own normal and
-capped round, and the caps were the whole trouble: two of them met at every
-point of the zigzag, so the outline wore a knob on the outside of each and left
-a notch in the inside of each, and at the corners whichever colour happened to
-be drawn last covered the other. `rim()` walks the outline instead — every
-hexagon edge with nothing behind it, in the order they join up — and
-`buildEdges()` lays one polygon along each colour's run of it.
-
-Two things about that walk are worth knowing:
-
-- **The whole of the geometry is `pushed()`**, the same mitre the goban's bands
-  use: the one point standing `BORDER_WIDTH` off both of the edges meeting at a
-  vertex. Taken at every vertex alike it turns the zigzag, closes the corners
-  between two colours, and needs no case of its own for either. It comes out
-  `MITRE` from the vertex every time, the outline turning through 120 degrees
-  wherever it turns at all, which is also how far the drawing reaches past the
-  points of the zigzag and so what a label there has to clear.
-- **Every corner of the board is halved between the two colours.** At two of
-  them the halves fall between hexagon edges and there is nothing to do. At the
-  other two the corner cell shows three edges, the middle one facing off the
-  board in two directions at once, and it is cut down the middle so each colour
-  keeps the half on its own side. Giving it whole to whichever colour asked
-  first is what left the four corners of the board looking unalike.
-
 **Turning the board upright is one rotation, applied to everything.** The
 rhombus comes out half again as wide as it is tall, which is the wrong way
 round for a phone, so where the room left for it is taller than it is wide the
@@ -141,11 +116,10 @@ Three things are worth knowing before touching it:
   the box on the corners and draws a smaller board than this.
 - **The hexagons come round with it**, which is the one thing that is not free.
   On their sides they reach 1 sideways and `HALF_WIDTH` up rather than the
-  other way about, and `faces()` has to say so, since where a label lands is
-  worked out rather than drawn. The box the drawing is given is not worked out:
-  the coloured band's own outer corners are the outermost thing there is, so
-  `render()` takes its box off them and never asks. Their neighbours do not
-  change: the polygon turns as one, so edge k still faces `NEIGHBOURS[k]`.
+  other way about, so how far a hexagon reaches is the only fact in the file
+  that has to be stated twice — in `faces()`, for the labels, and in `render()`,
+  for the box the drawing is given. Their neighbours do not change: the polygon
+  turns as one, so edge k still faces `NEIGHBOURS[k]`.
 - **The text does not turn with it**, which is what the labels have to answer
   for. A line of labels sits on the continuation of its own row or column, and
   faces the outline: square on to the screen on the hexagons, whose outline is
@@ -238,6 +212,34 @@ on a phone held upright, which is why its size on a narrow screen is still the
 largest that keeps it on one line. Now that chrome costs a scroll and nothing
 else, and what binds on a phone is the width: `phone.mjs` prints how much width
 the drawing leaves over, and on a phone held upright it is none.
+
+**The coloured edges are four bands, one polygon each.** They used to be a
+`<line>` per hexagon edge, each pushed out along its own normal and stroked
+with a round cap, which left a bead of colour at every kink of the zigzag and
+butted red into blue at a corner wherever the last segment happened to stop.
+`buildEdges()` chains the outline into one cycle instead and cuts it into four
+runs, so the joins between segments are joins.
+
+Where a run stops is the one thing there worth stating. A band ends where the
+outline reaches furthest along its corner's bisector: at a sharp corner that is
+a single vertex, and at a blunt one an edge stands square to the bisector, both
+its ends reach as far, and the two colours halve it. Both bands then stop on
+the same point and are cut along the same line, which is what makes a corner
+symmetrical — a blunt corner has three edges outside the board and no way to
+split them two and one without one colour taking the corner.
+
+A mitred band is the hexagon grown, so it reaches `2/√3` times its own width
+past the hexagon's points rather than the width itself. That is `OUTSET`, and
+it is what the labels stand clear of and what the viewBox has to hold; adding
+`BORDER_WIDTH` to the reach instead clips the points and crowds the labels on
+two sides out of four.
+
+`checks/edges.mjs` measures the three things that says: the bands join up, no
+corner of the outer face is further out or nearer in than `BORDER_WIDTH`, and
+red and blue take the same length of outline. It is told neither which way
+round a band was written down nor which of its two chains is the outer one —
+both are read off the drawing, since a check that assumed either would pass on
+a band drawn inside out.
 
 **The goban is another drawing of the same board, not another board.**
 `style` picks between the two in `render()`; everything else — the cells, the
