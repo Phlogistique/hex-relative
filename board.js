@@ -88,6 +88,13 @@ const BEVEL = 0.44; // stroke that rounds the wood's corners and darkens its rim
 // placed on the continuation of a column follow the slant of the rhombus.
 const SLANT = Math.sqrt(3) / 3;
 
+/**
+ * How big each drawing comes out, keyed by everything that decides it. Shared
+ * by every board on the page, since the answer is about the drawing and not
+ * about the board it was asked of.
+ */
+const SHAPES = new Map();
+
 export function center(col, row) {
   return { x: Math.sqrt(3) * (col + row / 2), y: 1.5 * row };
 }
@@ -294,6 +301,67 @@ export class HexBoard {
     if (mode === this.orientation) return;
     this.orientation = mode;
     this.render();
+  }
+
+  /**
+   * How big the drawing comes out, in its own units, drawn the given way
+   * round.
+   *
+   * The two are not each other transposed, which is the whole reason this is
+   * measured rather than worked out: the hexagons come round with the board
+   * but the labels do not, and a printed number is wider than it is tall, so
+   * standing the rhombus up does not stand its labels up with it. On 13x13 the
+   * upright drawing comes out a thirtieth wider against its own height than
+   * turning the lying one on its side would say — which is enough to settle a
+   * screen whose room and width are within a few percent of each other, and a
+   * phone held upright usually is.
+   *
+   * The way round that is not on screen has to be drawn to be measured, since
+   * where the labels land is read off the text as rendered. It is drawn once
+   * out of sight and the answer kept: it depends on the size, the style and
+   * which labels are printed, and on nothing that a resize touches.
+   */
+  shape(orientation = this.orientation) {
+    if (orientation === this.orientation && this.svg) {
+      const { width, height } = this.svg.viewBox.baseVal;
+      return { width, height };
+    }
+    const key = `${this.size}|${this.style}|${this.labels}|${orientation}`;
+    if (!SHAPES.has(key)) {
+      const host = document.createElement("div");
+      // Out of the way rather than hidden: `display: none` leaves the labels
+      // unrendered, and getBBox on those measures nothing.
+      host.style.cssText =
+        "position:absolute;left:-10000px;top:0;width:400px;visibility:hidden";
+      document.body.appendChild(host);
+      const probe = new HexBoard(host, {
+        size: this.size,
+        labels: this.labels,
+        style: this.style,
+        orientation,
+      });
+      const { width, height } = probe.svg.viewBox.baseVal;
+      SHAPES.set(key, { width, height });
+      host.remove();
+    }
+    return SHAPES.get(key);
+  }
+
+  /**
+   * Lie the rhombus down or stand it up, whichever draws the bigger board in a
+   * box this size. Answers with the way it went.
+   *
+   * How big the board comes out is how big one cell comes out, and that is the
+   * drawing scaled to fit the box each way round: the smaller of what the
+   * width allows and what the height does.
+   */
+  fitInto(width, height) {
+    const cell = (orientation) => {
+      const shape = this.shape(orientation);
+      return Math.min(width / shape.width, height / shape.height);
+    };
+    this.setOrientation(cell("tall") > cell("wide") ? "tall" : "wide");
+    return this.orientation;
   }
 
   setShowNumbers(on) {

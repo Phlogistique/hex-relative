@@ -365,3 +365,150 @@ await check(
     }
   },
 );
+
+/**
+ * Which way round draws the bigger board is not the same question as which way
+ * round the box leans, and this is the difference.
+ *
+ * The two drawings would be each other's transposed if the board were all
+ * there is to them, and then a box taller than it is wide would want the
+ * upright one and there would be nothing to measure. The labels are what
+ * spoils it: they come round with neither the board nor the reader's head, so
+ * a printed number stands the same way up in both drawings and takes its width
+ * out of the upright one's width, where lying down it took the same width out
+ * of a side with room to spare. The upright drawing therefore comes out
+ * slightly stouter than the lying one turned on its side, and that leaves a
+ * band of boxes a few percent wide — slightly wider than they are tall — where
+ * standing the board up still draws it bigger.
+ *
+ * The band is worked out here from the two drawings, a screen is built to land
+ * in the middle of it, and the page has to stand the board up there and draw
+ * it bigger for having done so. That screen comes out short and wide, since
+ * the board's box is the screen less what has to stay under the board: a
+ * phone held upright is well past the band, its box being much taller than it
+ * is wide, and this is what settles the screens that are not.
+ */
+await check(
+  "Turning pays before the box is taller than it is wide",
+  async ({ open }) => {
+    // A phone's width. The screen that lands in the band is worked out from
+    // it below, and comes out short: the board has the screen less what has to
+    // stay under it, so a box as wide as it is tall wants a short screen.
+    const WIDTH = 360;
+
+    for (const style of ["hex", "goban"]) {
+      const page = await open("#13n,d10j9d5j4c2b5b8", {
+        viewport: { width: WIDTH, height: 700 },
+        ...phone,
+      });
+      if (style !== "hex") {
+        await page.selectOption("#style", style);
+        await page.waitForTimeout(150);
+      }
+
+      // What the page needs to know about itself: how wide the board's box is,
+      // what has to stay under it, and how big the drawing comes out each
+      // way round. The shapes are asked of the board itself, which draws the way
+      // round it is not showing out of sight to answer; they are checked against
+      // a real drawing of that orientation, since a hidden drawing that measured
+      // nothing would look like a very stout board and turn every screen.
+      const found = await page.evaluate(async () => {
+        const { HexBoard } = await import("./board.js");
+        const svg = document.querySelector(".hex-board");
+        const size = Number(document.getElementById("size").value);
+        const style = svg.classList.contains("style-goban") ? "goban" : "hex";
+        const host = document.createElement("div");
+        host.style.width = "400px";
+        document.body.appendChild(host);
+        const asked = {};
+        const drawn = {};
+        for (const orientation of ["wide", "tall"]) {
+          const real = new HexBoard(host, {
+            size,
+            labels: "relative",
+            style,
+            orientation,
+          });
+          const view = real.svg.viewBox.baseVal;
+          drawn[orientation] = { width: view.width, height: view.height };
+          // The other way round, which it has to draw out of sight to answer.
+          asked[orientation === "tall" ? "wide" : "tall"] = {
+            ...real.shape(orientation === "tall" ? "wide" : "tall"),
+          };
+        }
+        host.remove();
+
+        const box = svg.getBoundingClientRect();
+        const answer = document.querySelector(".side .card .readout-main");
+        return {
+          drawn,
+          asked,
+          width: box.width,
+          // All the board is not allowed to take: what has to stay on screen
+          // under it. What stands above it does not count against the board,
+          // the reader being able to scroll that off the top.
+          below: answer.getBoundingClientRect().bottom - box.bottom,
+        };
+      });
+      await page.close();
+
+      for (const orientation of ["wide", "tall"]) {
+        const one = found.drawn[orientation];
+        const other = found.asked[orientation];
+        const off = Math.max(
+          Math.abs(one.width - other.width),
+          Math.abs(one.height - other.height),
+        );
+        if (off > 1e-6) {
+          throw new Error(
+            `${style} ${orientation}: drawn ${one.width}x${one.height}, ` +
+              `answered ${other.width}x${other.height}`,
+          );
+        }
+      }
+
+      // Where turning starts to pay: the upright drawing is bound by its height
+      // and the lying one by its width, so the room has to reach this much of
+      // the width rather than all of it.
+      const { wide, tall } = found.drawn;
+      const pays = tall.height / wide.width;
+      const middle = (pays + 1) / 2; // halfway into the band
+      const room = found.width * middle;
+      // The screen that leaves the board exactly that much room.
+      const height = Math.round(room + found.below);
+
+      const at = await open("#13n,d10j9d5j4c2b5b8", {
+        viewport: { width: WIDTH, height },
+        ...phone,
+      });
+      if (style !== "hex") {
+        await at.selectOption("#style", style);
+        await at.waitForTimeout(150);
+      }
+      const got = await at.evaluate(drawing);
+      const cell = (shape) =>
+        Math.sqrt(3) * Math.min(found.width / shape.width, room / shape.height);
+      console.log(
+        `  ${pad(style, 6)} upright is ${((1 / pays - 1) * 100).toFixed(1)}% stouter ` +
+          `than lying down on its side, so on ${WIDTH}x${height} a box ` +
+          `${found.width.toFixed(0)} by ${room.toFixed(0)} — wider than it is tall — ` +
+          `is drawn ${got.orientation}, at ${cell(tall).toFixed(1)}px to the cell ` +
+          `against ${cell(wide).toFixed(1)} lying down`,
+      );
+      if (room >= found.width) {
+        throw new Error(
+          `the box is ${found.width} by ${room}, wanted it wider`,
+        );
+      }
+      if (cell(tall) <= cell(wide)) {
+        throw new Error(
+          `upright draws ${cell(tall)}, lying down ${cell(wide)}`,
+        );
+      }
+      if (got.orientation !== "tall") {
+        throw new Error(`drawn ${got.orientation} where upright draws bigger`);
+      }
+      await at.close();
+    }
+  },
+);

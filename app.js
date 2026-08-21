@@ -216,14 +216,17 @@ function setStyle(mode) {
  * Which way round to draw the board, and how tall it may be.
  *
  * The two drawings are the same board in the same box, lying down and stood on
- * its end, so their shapes are each other's transposed: three to two against
- * two to three. Which of them to use is therefore not a question about the
- * device but about the space left for the board — whichever way that space
- * leans, one of them fills it and the other wastes most of it — so it is
- * measured rather than asked.
+ * its end, so which of them to use is not a question about the device but
+ * about the space left for the board: whichever way that space leans, one of
+ * them fills it and the other wastes most of it. Both are measured — the box
+ * here, the drawings in `board.shape()` — because their shapes are not quite
+ * each other's transposed and the answer near the turn depends on the
+ * difference, which on a phone held upright is where the answer usually is.
  *
- * Nothing changes unless the board actually stands up: the cap is the
- * stylesheet's own until then.
+ * Where the page is one column the script says how tall the board may be, both
+ * ways round, since the same measurement is what the choice was made on. Beside
+ * the panel rather than under it there is nothing to measure and the cap is the
+ * stylesheet's own.
  */
 function fitBoard() {
   const svg = ui.board.querySelector("svg");
@@ -231,25 +234,32 @@ function fitBoard() {
   ui.board.style.removeProperty("--board-room");
   const width = svg.getBoundingClientRect().width;
   const room = roomForBoard(svg);
-  if (room > width) {
-    ui.board.style.setProperty("--board-room", `${room}px`);
-    board.setOrientation("tall");
-  } else {
-    board.setOrientation("wide");
-  }
+  const cap = maxHeight(svg); // the stylesheet's own, with that out of the way
+  board.fitInto(width, room ?? cap);
+  if (room !== null) ui.board.style.setProperty("--board-room", `${room}px`);
+}
+
+/** The stylesheet's cap on the board, `none` counting as no cap at all. */
+function maxHeight(svg) {
+  return parseFloat(getComputedStyle(svg).maxHeight) || Infinity;
 }
 
 /**
- * How tall the board may be. Beside the Cell panel that is whatever the
- * stylesheet allows; under it — which is where a phone puts it — the board may
- * have the rest of the screen but not the panel's own place on it, since the
- * panel is where a tap's answer appears and a tap that scrolls its own answer
- * out of sight is no use.
+ * How tall the board may be, or null where the stylesheet's own cap stands.
  *
- * Everything between the foot of the board and the foot of the panel is laid
+ * What has to fit on the screen is the board and the answer to a tap, and not
+ * a pixel more: the heading and the toolbar are above the board and the reader
+ * can put them off the top of the screen by scrolling, so what they take is
+ * not taken from the board. So the room is the screen less what has to stay
+ * under the board — which is why a phone gets a board taller than the space
+ * the page happens to leave it, and is scrolled to.
+ *
+ * Everything between the foot of the board and the foot of that answer is laid
  * out already and does not depend on how tall the board is, so measuring it
  * settles the cap in one go. The stylesheet is asked whether the page is one
- * column or two, rather than the breakpoint being written down here as well.
+ * column or two, rather than the breakpoint being written down here as well:
+ * beside the board rather than under it, the panel keeps its own place and the
+ * board is left to the stylesheet.
  */
 /**
  * The height of the viewport that a phone's URL bar does not move.
@@ -258,9 +268,10 @@ function fitBoard() {
  * back as you scroll up, `innerHeight` follows it, and a resize fires each
  * time — which is why the board was turning over mid-scroll on a screen near
  * the size where the decision is close. The layout viewport does not move with
- * the bar, and `svh` is that viewport at its smallest, the bar showing. That
- * is also the one the Cell panel has to fit in, since the page is at the top
- * and the bar is out when a tap has to be answered without scrolling.
+ * the bar, and `svh` is that viewport at its smallest, the bar showing. That is
+ * the one to fit the board in: it is the screen the reader is promised whatever
+ * the bar is doing, and the bar is out whenever they have just scrolled up to
+ * the top.
  */
 function steadyHeight() {
   const probe = document.createElement("div");
@@ -276,17 +287,18 @@ function steadyHeight() {
 }
 
 function roomForBoard(svg) {
-  // `none`, should the stylesheet ever stop capping it, is no cap at all.
-  const cap = parseFloat(getComputedStyle(svg).maxHeight) || Infinity;
   // The answer itself, rather than the whole panel: the other names of the
   // cell sit under it and can wait for a scroll. It is also the one part whose
   // height does not depend on what has been tapped, so the board keeps still.
   const answer = document.querySelector(".side .card .readout-main");
   const columns = getComputedStyle(main).gridTemplateColumns.split(" ").length;
-  if (columns > 1 || !answer) return cap;
+  if (columns > 1 || !answer) return null;
   const box = svg.getBoundingClientRect();
   const below = answer.getBoundingClientRect().bottom - box.bottom;
-  return Math.min(cap, steadyHeight() - (box.top + scrollY) - below);
+  const room = steadyHeight() - below;
+  // A screen with no room for the answer at all leaves nothing to measure
+  // against, and a cap of nothing would draw a board of nothing.
+  return room > 0 ? room : null;
 }
 
 function setSize(size) {
