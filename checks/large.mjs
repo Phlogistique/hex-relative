@@ -50,7 +50,7 @@ await check("The largest board", async ({ open }) => {
   const page = await open(`#${SIZE}n,${LAST}aa27a1`);
   const got = await page.evaluate(measure);
   console.log(
-    `  ${pad(`${SIZE}x${SIZE}`, 8)}${got.cells} cells   ${got.width}x${got.height} in a ` +
+    `  ${pad(`${SIZE}x${SIZE}`, 10)}${got.cells} cells   ${got.width}x${got.height} in a ` +
       `${got.card} box   cell ${got.cell}px   label ${got.label}px   ` +
       (got.overflows ? "OVERFLOWS" : "no sideways overflow"),
   );
@@ -68,7 +68,7 @@ await check("The largest board", async ({ open }) => {
     stones: document.querySelectorAll(".stone:not(.hidden)").length,
   }));
   console.log(
-    `  ${pad("corner", 8)}${named.standard} is ${named.relative}   ${named.stones} stones on the board`,
+    `  ${pad("corner", 10)}${named.standard} is ${named.relative}   ${named.stones} stones on the board`,
   );
   if (named.standard !== LAST)
     throw new Error(`corner named ${named.standard}`);
@@ -81,7 +81,7 @@ await check("The largest board", async ({ open }) => {
   const columns = (await page.evaluate(measure)).columns;
   const across = columns; // the top edge, left to right
   console.log(
-    `  ${pad("columns", 8)}${across.slice(24, 29).join(" ")} ... ${across.at(-1)}`,
+    `  ${pad("columns", 10)}${across.slice(24, 29).join(" ")} ... ${across.at(-1)}`,
   );
   if (across.at(0) !== "a" || across.at(25) !== "z" || across.at(26) !== "aa") {
     throw new Error(`columns run ${across.slice(24, 28).join(" ")}`);
@@ -100,9 +100,35 @@ await check("The largest board", async ({ open }) => {
   });
   const small = await phone.evaluate(measure);
   console.log(
-    `  ${pad("phone", 8)}${small.width}x${small.height} ${small.orientation}   cell ${small.cell}px   ` +
+    `  ${pad("phone", 10)}${small.width}x${small.height} ${small.orientation}   cell ${small.cell}px   ` +
       (small.overflows ? "OVERFLOWS" : "no sideways overflow"),
   );
   if (small.overflows) throw new Error("the phone page overflows sideways");
   await phone.close();
+
+  // Held sideways the answer to a tap stands in a column beside the board,
+  // narrow enough that this board's longest name — seven characters, where
+  // 13x13's longest is four — is what says how wide it has to be.
+  const sideways = await open(`#${SIZE}`, {
+    viewport: { width: 568, height: 320 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  await sideways.fill("#goto", "10'-26'");
+  await sideways.press("#goto", "Enter");
+  await sideways.waitForTimeout(150);
+  const turned = await sideways.evaluate(measure);
+  const answer = await sideways.evaluate(() =>
+    document
+      .querySelector(".readout-main")
+      .textContent.replace(/\s+/g, " ")
+      .trim(),
+  );
+  console.log(
+    `  ${pad("sideways", 10)}${turned.width}x${turned.height} ${turned.orientation}   ` +
+      `cell ${turned.cell}px   answer ${answer}   ` +
+      (turned.overflows ? "OVERFLOWS" : "no sideways overflow"),
+  );
+  if (turned.overflows) throw new Error("the sideways page overflows sideways");
+  await sideways.close();
 });
