@@ -212,6 +212,27 @@ largest that keeps it on one line. Now that chrome costs a scroll and nothing
 else, and what binds on a phone is the width: `phone.mjs` prints how much width
 the drawing leaves over, and on a phone held upright it is none.
 
+**The coloured edges are four bands, one polygon each.** They used to be a
+`<line>` per hexagon edge, each pushed out along its own normal and stroked
+with a round cap, which left a bead of colour at every kink of the zigzag and
+butted red into blue at a corner wherever the last segment happened to stop.
+`buildEdges()` chains the outline into one cycle instead and cuts it into four
+runs, so the joins between segments are joins.
+
+Where a run stops is the one thing there worth stating. A band ends where the
+outline reaches furthest along its corner's bisector: at a sharp corner that is
+a single vertex, and at a blunt one an edge stands square to the bisector, both
+its ends reach as far, and the two colours halve it. Both bands then stop on
+the same point and are cut along the same line, which is what makes a corner
+symmetrical — a blunt corner has three edges outside the board and no way to
+split them two and one without one colour taking the corner.
+
+A mitred band is the hexagon grown, so it reaches `2/√3` times its own width
+past the hexagon's points rather than the width itself. That is `OUTSET`, and
+it is what the labels stand clear of and what the viewBox has to hold; adding
+`BORDER_WIDTH` to the reach instead clips the points and crowds the labels on
+two sides out of four.
+
 **The goban is another drawing of the same board, not another board.**
 `style` picks between the two in `render()`; everything else — the cells, the
 history, the URL, the hit testing — is shared and untouched. The go-style
