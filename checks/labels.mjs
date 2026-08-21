@@ -18,11 +18,12 @@ import { check, pad } from "./lib/browser.mjs";
 const GAP = 0.55; // must match board.js
 const HALF_WIDTH = Math.sqrt(3) / 2;
 const BORDER = 0.3; // BORDER_WIDTH in board.js
+const MITRE = (BORDER * 2) / Math.sqrt(3); // how far past a point it mitres
 
 await check("Label clearance", async ({ open }) => {
   const page = await open("#13");
   const measured = await page.evaluate(
-    ([HALF_WIDTH, BORDER]) => {
+    ([HALF_WIDTH, BORDER, MITRE]) => {
       const size = Number(document.getElementById("size").value);
       const last = size - 1;
       const centre = (col, row) => ({
@@ -51,15 +52,17 @@ await check("Label clearance", async ({ open }) => {
         return inks.get(key);
       };
 
-      const segments = [...document.querySelectorAll(".border")].map(
-        (line) => ({
-          x1: +line.getAttribute("x1"),
-          y1: +line.getAttribute("y1"),
-          x2: +line.getAttribute("x2"),
-          y2: +line.getAttribute("y2"),
-          half: Number(line.getAttribute("stroke-width")) / 2,
-        }),
-      );
+      // The coloured edges are four bands; every side of every one of them
+      // counts as outline, mitred corners included.
+      const segments = [];
+      for (const band of document.querySelectorAll(".border")) {
+        const points = [...band.points];
+        for (let i = 0; i < points.length; i++) {
+          const a = points[i];
+          const b = points[(i + 1) % points.length];
+          segments.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, half: 0 });
+        }
+      }
       const toSegment = (px, py, s) => {
         const dx = s.x2 - s.x1;
         const dy = s.y2 - s.y1;
@@ -97,8 +100,8 @@ await check("Label clearance", async ({ open }) => {
           const near = side === "top" ? baseline : baseline - 2 * ink;
           const point =
             side === "top"
-              ? centre(index, 0).y - 1 - BORDER
-              : centre(index, last).y + 1 + BORDER;
+              ? centre(index, 0).y - 1 - MITRE
+              : centre(index, last).y + 1 + MITRE;
           facing = side === "top" ? point - near : near - point;
         }
 
@@ -121,7 +124,7 @@ await check("Label clearance", async ({ open }) => {
       }
       return groups;
     },
-    [HALF_WIDTH, BORDER],
+    [HALF_WIDTH, BORDER, MITRE],
   );
 
   for (const [side, labels] of Object.entries(measured)) {

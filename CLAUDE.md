@@ -39,6 +39,7 @@ worth reading as much as running.
 | check | what it holds down |
 |---|---|
 | `labels.mjs` | every coordinate label stands exactly `GAP` off the edge it faces |
+| `edges.mjs` | the four coloured edges join up, stand `BORDER_WIDTH` off the outline and no more, and split every corner evenly |
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
@@ -95,6 +96,31 @@ measuring in the browser rather than nudging a number:
   holding it at arm's length pushed the numbers visibly out. Clearance is now
   measured to the edge each label faces.
 
+**The coloured edges are four bands, not one shape per hexagon edge.** They
+were drawn a segment at a time once, each shifted out along its own normal and
+capped round, and the caps were the whole trouble: two of them met at every
+point of the zigzag, so the outline wore a knob on the outside of each and left
+a notch in the inside of each, and at the corners whichever colour happened to
+be drawn last covered the other. `rim()` walks the outline instead — every
+hexagon edge with nothing behind it, in the order they join up — and
+`buildEdges()` lays one polygon along each colour's run of it.
+
+Two things about that walk are worth knowing:
+
+- **The whole of the geometry is `pushed()`**, the same mitre the goban's bands
+  use: the one point standing `BORDER_WIDTH` off both of the edges meeting at a
+  vertex. Taken at every vertex alike it turns the zigzag, closes the corners
+  between two colours, and needs no case of its own for either. It comes out
+  `MITRE` from the vertex every time, the outline turning through 120 degrees
+  wherever it turns at all, which is also how far the drawing reaches past the
+  points of the zigzag and so what a label there has to clear.
+- **Every corner of the board is halved between the two colours.** At two of
+  them the halves fall between hexagon edges and there is nothing to do. At the
+  other two the corner cell shows three edges, the middle one facing off the
+  board in two directions at once, and it is cut down the middle so each colour
+  keeps the half on its own side. Giving it whole to whichever colour asked
+  first is what left the four corners of the board looking unalike.
+
 **Turning the board upright is one rotation, applied to everything.** The
 rhombus comes out half again as wide as it is tall, which is the wrong way
 round for a phone, so where the room left for it is taller than it is wide the
@@ -115,10 +141,11 @@ Three things are worth knowing before touching it:
   the box on the corners and draws a smaller board than this.
 - **The hexagons come round with it**, which is the one thing that is not free.
   On their sides they reach 1 sideways and `HALF_WIDTH` up rather than the
-  other way about, so how far a hexagon reaches is the only fact in the file
-  that has to be stated twice — in `faces()`, for the labels, and in `render()`,
-  for the box the drawing is given. Their neighbours do not change: the polygon
-  turns as one, so edge k still faces `NEIGHBOURS[k]`.
+  other way about, and `faces()` has to say so, since where a label lands is
+  worked out rather than drawn. The box the drawing is given is not worked out:
+  the coloured band's own outer corners are the outermost thing there is, so
+  `render()` takes its box off them and never asks. Their neighbours do not
+  change: the polygon turns as one, so edge k still faces `NEIGHBOURS[k]`.
 - **The text does not turn with it**, which is what the labels have to answer
   for. A line of labels sits on the continuation of its own row or column, and
   faces the outline: square on to the screen on the hexagons, whose outline is

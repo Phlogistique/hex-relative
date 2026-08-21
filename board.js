@@ -68,6 +68,10 @@ const LINE_GAP = 0.5;
 const PAD = 0.15; // a little air beyond the outermost labels
 
 const BORDER_WIDTH = 0.3;
+// The outline turns through 120 degrees at every point of its zigzag, so a
+// band mitred to follow it stands this much past the point it turns, where it
+// stands BORDER_WIDTH off the flat of a hexagon.
+const MITRE = (BORDER_WIDTH * 2) / Math.sqrt(3);
 
 // --- the go-style boards ---
 // The same board drawn as the tiling's dual: the cell centres become the
@@ -377,26 +381,15 @@ export class HexBoard {
 
   render() {
     const { size } = this;
-    const last = size - 1;
     const dual = this.style !== "hex";
     const hexagon = this.vertices();
-    // The board itself, outside edge of the border included: the corners of
-    // the rhombus of centres, grown by however far a hexagon reaches each way
-    // — which is not the same each way, and swaps over when the board turns.
-    const corners = [
-      [0, 0],
-      [last, 0],
-      [last, last],
-      [0, last],
-    ].map(([col, row]) => this.at(col, row));
-    const reach = (pick) => Math.max(...hexagon.map((v) => Math.abs(pick(v))));
+    // The board itself, outside edge of the coloured band included. On the
+    // hexagons the band's own outer corners are that edge, so there is nothing
+    // left to work out; the wooden board is a rhombus and says where it ends.
+    const rim = dual ? [] : this.rim(hexagon);
     const board = dual
       ? boxOf(outline(size, WOOD, this.turn))
-      : stretch(
-          boxOf(corners),
-          reach((v) => v[0]) + BORDER_WIDTH,
-          reach((v) => v[1]) + BORDER_WIDTH,
-        );
+      : boxOf(rim.map((s) => s.corner));
 
     const svg = document.createElementNS(SVG_NS, "svg");
     setViewBox(svg, board);
@@ -430,7 +423,7 @@ export class HexBoard {
       }
     }
     if (dual) this.buildBands(edgeLayer);
-    else this.buildEdges(edgeLayer, hexagon);
+    else this.buildEdges(edgeLayer, rim);
     const labels = this.buildLabels(labelLayer);
 
     this.svg = svg;
@@ -476,33 +469,101 @@ export class HexBoard {
     return g;
   }
 
-  /** Thick coloured borders: every hex edge with no neighbour behind it. */
-  buildEdges(layer, hexagon) {
+  /**
+   * The board's outline, clockwise from the top left, as one entry per hexagon
+   * edge with nothing behind it: where it runs, its own outward normal, the
+   * coloured edge it belongs to, and where its near end lands when the whole
+   * outline is pushed BORDER_WIDTH outwards.
+   *
+   * That last is the mitre — the one point standing BORDER_WIDTH off both of
+   * the edges meeting there — and taking it at every corner alike is what
+   * keeps the four sides of the band flush with each other.
+   *
+   * A corner cell's outline is halved between the two colours meeting on it,
+   * so that all four corners are cut the same way. At two of them the halves
+   * fall between hexagon edges; at the other two the middle edge faces both
+   * ways at once and is split down the middle, each colour taking the half on
+   * its own side.
+   */
+  rim(hexagon) {
     const { size } = this;
-    for (let row = 0; row < size; row++) {
-      for (let col = 0; col < size; col++) {
-        const { x, y } = this.at(col, row);
-        for (let k = 0; k < 6; k++) {
+    const last = size - 1;
+    // Clockwise on screen runs backwards through a hexagon's own vertices, so
+    // edge k is walked from vertex k+1 to vertex k.
+    const runs = [
+      ["redp", (i) => [i, 0], [1, 0]],
+      ["bluep", (i) => [last, i], [0, 5]],
+      ["red", (i) => [last - i, last], [4, 3]],
+      ["blue", (i) => [0, last - i], [3, 2]],
+    ];
+    const rim = [];
+    for (const [edge, cell, walk] of runs) {
+      for (let i = 0; i < size; i++) {
+        const [col, row] = cell(i);
+        const here = this.at(col, row);
+        for (const k of walk) {
           const [dc, dr] = NEIGHBOURS[k];
-          const side = outsideSide(col + dc, row + dr, size);
-          if (!side) continue;
-          const [ax, ay] = hexagon[k];
-          const [bx, by] = hexagon[(k + 1) % 6];
-          // Shift the segment out along its own normal by half the stroke, so
-          // the whole width of it lies beyond the cell.
-          const mx = (ax + bx) / 2;
-          const my = (ay + by) / 2;
-          const out = BORDER_WIDTH / 2 / Math.hypot(mx, my);
-          const line = document.createElementNS(SVG_NS, "line");
-          line.setAttribute("x1", x + ax + mx * out);
-          line.setAttribute("y1", y + ay + my * out);
-          line.setAttribute("x2", x + bx + mx * out);
-          line.setAttribute("y2", y + by + my * out);
-          line.setAttribute("stroke-width", BORDER_WIDTH);
-          line.setAttribute("class", `border border-${side}`);
-          layer.appendChild(line);
+          const facing = outsideSides(col + dc, row + dr, size);
+          const half = facing.indexOf(edge);
+          if (half < 0) continue;
+          const [ax, ay] = hexagon[(k + 1) % 6];
+          const [bx, by] = hexagon[k];
+          const ends = [
+            { x: here.x + ax, y: here.y + ay },
+            { x: here.x + bx, y: here.y + by },
+          ];
+          // A shared edge is cut in two, and this colour keeps its own half.
+          if (facing.length > 1) {
+            ends[1 - half] = {
+              x: (ends[0].x + ends[1].x) / 2,
+              y: (ends[0].y + ends[1].y) / 2,
+            };
+          }
+          rim.push({
+            edge,
+            from: ends[0],
+            to: ends[1],
+            // An edge's outward normal points at its own middle, and a
+            // hexagon's middles all stand HALF_WIDTH off the centre.
+            normal: {
+              x: (ax + bx) / 2 / HALF_WIDTH,
+              y: (ay + by) / 2 / HALF_WIDTH,
+            },
+          });
         }
       }
+    }
+    return rim.map((s, i) => ({
+      ...s,
+      corner: pushed(
+        s.from,
+        rim[(i + rim.length - 1) % rim.length].normal,
+        s.normal,
+        BORDER_WIDTH,
+      ),
+    }));
+  }
+
+  /**
+   * The coloured edges, as four bands laid along the outline: each runs flush
+   * with the hexagons it belongs to and stands BORDER_WIDTH out from them,
+   * turning every point of the zigzag on a mitre. Where two colours meet they
+   * share that mitre, so neither overruns the other.
+   */
+  buildEdges(layer, rim) {
+    for (let i = 0; i < rim.length; ) {
+      let j = i;
+      while (j + 1 < rim.length && rim[j + 1].edge === rim[i].edge) j++;
+      const run = rim.slice(i, j + 1);
+      const outer = run.map((s) => s.corner);
+      outer.push(rim[(j + 1) % rim.length].corner);
+      const inner = run.map((s) => s.from);
+      inner.push(run[run.length - 1].to);
+      const band = document.createElementNS(SVG_NS, "polygon");
+      band.setAttribute("points", pointsOf([...outer, ...inner.reverse()]));
+      band.setAttribute("class", `border border-${rim[i].edge}`);
+      layer.appendChild(band);
+      i = j + 1;
     }
   }
 
@@ -672,15 +733,19 @@ export class HexBoard {
   faces() {
     const hex = this.style === "hex";
     const tall = this.orientation === "tall";
-    // A pointy-top hexagon reaches HALF_WIDTH sideways and 1 up and down; the
-    // turn stands it on its side and it reaches the other way about.
+    // A pointy-top hexagon reaches 1 towards its points and HALF_WIDTH towards
+    // its flats; the turn stands it on its side and it reaches the other way
+    // about. The band beyond it stands BORDER_WIDTH off a flat, and MITRE past
+    // a point, the two being what a label on that side has to clear.
+    const point = 1 + MITRE;
+    const flat = HALF_WIDTH + BORDER_WIDTH;
     const flank = {
       normal: hex ? { x: 1, y: 0 } : this.turn({ x: HALF_WIDTH, y: -0.5 }),
-      out: hex ? (tall ? 1 : HALF_WIDTH) + BORDER_WIDTH : WOOD,
+      out: hex ? (tall ? point : flat) : WOOD,
     };
     const end = {
       normal: hex ? { x: 0, y: -1 } : this.turn({ x: 0, y: -1 }),
-      out: hex ? (tall ? HALF_WIDTH : 1) + BORDER_WIDTH : WOOD,
+      out: hex ? (tall ? flat : point) : WOOD,
     };
     const row = this.turn({ x: 1, y: 0 }); // along a row, to the right
     const column = this.turn({ x: SLANT, y: 1 }); // down a column
@@ -841,7 +906,7 @@ export class HexBoard {
       for (const [dc, dr] of NEIGHBOURS) {
         const next = { col: cell.col + dc, row: cell.row + dr };
         const key = this.key(next.col, next.row);
-        if (outsideSide(next.col, next.row, size)) continue;
+        if (outsideSides(next.col, next.row, size).length) continue;
         if (from.has(key) || owner.get(key)?.color !== color) continue;
         from.set(key, cell);
         queue.push(next);
@@ -926,19 +991,24 @@ function scalePair(near, far) {
     : { inner: `${near}`, outer: `${far}'` };
 }
 
-/** Which edge a cell falls off, or null if it is on the board. */
-function outsideSide(col, row, size) {
-  if (row < 0) return "redp"; // above the top red' edge
-  if (row >= size) return "red"; // below the bottom red edge
-  if (col < 0) return "blue"; // left of the blue edge
-  if (col >= size) return "bluep"; // right of the blue' edge
-  return null;
+/**
+ * Which coloured edges a cell falls outside of, clockwise, or nothing at all
+ * if it is on the board. Past a corner it falls outside two of them at once,
+ * and the hexagon edge facing it is shared between the two colours.
+ */
+function outsideSides(col, row, size) {
+  const sides = [];
+  if (row < 0) sides.push("redp"); // above the top red' edge
+  if (col >= size) sides.push("bluep"); // right of the blue' edge
+  if (row >= size) sides.push("red"); // below the bottom red edge
+  if (col < 0) sides.push("blue"); // left of the blue edge
+  return sides;
 }
 
 /**
  * The four sides of the rhombus the cell centres describe, going round from
  * the red' one, each with its own outward unit normal and its neighbours'. The
- * edge a side belongs to is named as outsideSide() names it. `turn` is how the
+ * edge a side belongs to is named as outsideSides() names it. `turn` is how the
  * board is standing: it moves the corners and the normals alike, so the four
  * come back in the same order, pointing the same way relative to the board.
  */
