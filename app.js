@@ -266,6 +266,30 @@ function fitOnce() {
  */
 const ANSWER_SIZES = [1, 0.78, 0.62];
 
+// Daylight between the block and the drawing it stands in the corner of.
+const CLEAR = 8;
+
+/**
+ * The drawing's own rectangle inside the box it was given. It keeps its shape
+ * and centres itself in whatever is left, so on a board bound by its height
+ * the box runs well past the ink on both sides — and the corner the block
+ * stands in is the drawing's, not the box's, or it floats away from the board
+ * on exactly the screens that have room to spare.
+ */
+function drawnBox() {
+  const svg = ui.board.querySelector("svg");
+  const box = svg.getBoundingClientRect();
+  const view = svg.viewBox.baseVal;
+  const scale = Math.min(box.width / view.width, box.height / view.height);
+  const slackX = (box.width - view.width * scale) / 2;
+  const slackY = (box.height - view.height * scale) / 2;
+  return {
+    top: box.top + slackY,
+    right: box.right - slackX,
+    width: box.width - 2 * slackX,
+  };
+}
+
 /**
  * How far the drawing's ink keeps clear of the right edge of its box, down to
  * this depth: how wide a block may stand in that corner.
@@ -280,19 +304,21 @@ const ANSWER_SIZES = [1, 0.78, 0.62];
  */
 function cornerRoom(depth) {
   const svg = ui.board.querySelector("svg");
-  const box = svg.getBoundingClientRect();
-  const bottom = box.top + depth;
-  let reach = box.left;
+  const drawn = drawnBox();
+  const bottom = drawn.top + depth;
+  let reach = drawn.right - drawn.width;
   for (const text of svg.querySelectorAll(".labels text")) {
     const ink = text.getBoundingClientRect();
     if (ink.top < bottom) reach = Math.max(reach, ink.right);
   }
-  for (const outline of svg.querySelectorAll("polygon.band, polygon.border")) {
-    reach = Math.max(reach, rightmostIn(outline, box.top, bottom));
+  // The wood the goban is drawn on leans the same way the bands do, so it is
+  // taken by its outline too.
+  for (const outline of svg.querySelectorAll(
+    "polygon.band, polygon.border, polygon.wood",
+  )) {
+    reach = Math.max(reach, rightmostIn(outline, drawn.top, bottom));
   }
-  const wood = svg.querySelector("polygon.wood");
-  if (wood) reach = Math.max(reach, wood.getBoundingClientRect().right);
-  return box.right - reach;
+  return drawn.right - reach;
 }
 
 /** How far right a polygon's outline reaches between two heights on screen. */
@@ -318,27 +344,45 @@ function rightmostIn(polygon, top, bottom) {
   return reach;
 }
 
-/** Stand the cell's names wherever they now fit. Says whether they moved. */
+/**
+ * Stand the cell's names in the corner if they fit there, and under the
+ * drawing if they do not. Says whether that answer changed.
+ *
+ * They stay in the board's own card either way, so the fallback reads as the
+ * drawing's own caption rather than as something adrift under it.
+ */
 function placeAnswer() {
   if (!ui.board.querySelector("svg")) return false;
   // Not while the field holds the caret: moving it in the DOM drops the focus,
   // and on a phone the keyboard with it, in the middle of typing a coordinate.
   if (document.activeElement === ui.coord) return false;
-  const was = ui.names.parentElement;
-  // Measured under the board at the size the page prints it, which the corner
-  // scales down from.
-  ui.names.style.removeProperty("font-size");
-  ui.board.after(ui.names);
+  const was = document.body.hasAttribute("data-corner");
+  // Asked in the layout the corner would give, not the one it is in: standing
+  // the block out there is what leaves the board the width the panel beside it
+  // was taking, and a wider board has a wider corner. Asked the other way
+  // round, a board that had once fallen back could never climb out again.
+  document.body.toggleAttribute("data-corner", true);
+  ui.names.style.cssText = "";
+  ui.board.appendChild(ui.names);
   const block = ui.names.getBoundingClientRect();
+  // Room for the block and the daylight round it, both ways.
   const scale = ANSWER_SIZES.find(
-    (size) => cornerRoom(block.height * size) >= block.width * size,
+    (size) =>
+      cornerRoom(block.height * size + CLEAR) >= block.width * size + CLEAR,
   );
+  document.body.toggleAttribute("data-corner", Boolean(scale));
   if (scale) {
     ui.names.style.fontSize = `${scale}rem`;
-    ui.board.appendChild(ui.names);
+    // Set against the drawing's own corner. A box is positioned against the
+    // card's padding box, which is the border away from where the card is
+    // measured from.
+    const card = ui.board.getBoundingClientRect();
+    const border = ui.board.clientTop;
+    const drawn = drawnBox();
+    ui.names.style.top = `${drawn.top - card.top - border + CLEAR}px`;
+    ui.names.style.right = `${card.right - drawn.right - border + CLEAR}px`;
   }
-  document.body.toggleAttribute("data-corner", Boolean(scale));
-  return ui.names.parentElement !== was;
+  return Boolean(scale) !== was;
 }
 
 /** The stylesheet's cap on the board, `none` counting as no cap at all. */

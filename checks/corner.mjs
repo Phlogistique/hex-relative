@@ -39,7 +39,9 @@ const stands = () => {
     }
   }
   return {
-    corner: block.parentElement.classList.contains("board"),
+    // The block sits in the board's card either way; standing in the corner is
+    // standing out of the flow, over the drawing.
+    corner: getComputedStyle(block).position === "absolute",
     size: block.style.fontSize || "the page's own",
     block: `${Math.round(seat.width)}x${Math.round(seat.height)}`,
     cell:
@@ -95,13 +97,19 @@ await check("The cell's names in the corner", async ({ open }) => {
     }
   }
 
-  // Where it does not fit it goes back under the board: the largest board on a
-  // screen with almost no height leaves a corner narrower than the names are.
+  // Where it does not fit it goes back under the drawing: the largest board on
+  // a screen with almost no height leaves a corner shallower than the names
+  // are, once a cell has been named and its other three names are there too.
   const cramped = await open("#53n,", {
     viewport: { width: 480, height: 280 },
     isMobile: true,
     hasTouch: true,
   });
+  await cramped.selectOption("#mode", "inspect");
+  await cramped
+    .locator(".cells .cell")
+    .nth(27 * 53 + 9)
+    .tap();
   const back = await cramped.evaluate(stands);
   console.log(
     `  ${pad("cramped", 16)}${pad("53x53", 7)}` +
@@ -124,9 +132,9 @@ await check("The cell's names in the corner", async ({ open }) => {
     .nth(3 * 13 + 3)
     .tap();
   const tapped = await page.evaluate(() => ({
-    corner: document
-      .querySelector("#names")
-      .parentElement.classList.contains("board"),
+    corner:
+      getComputedStyle(document.querySelector("#names")).position ===
+      "absolute",
     name: document.querySelector("#coord").value,
     others: [...document.querySelectorAll("#variants li")].map(
       (node) => node.textContent,

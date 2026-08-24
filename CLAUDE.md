@@ -190,16 +190,27 @@ of a single band covers the entire corner**: measured that way, a 13x13 board
 leaves a shallow strip 250 by 42px and 53x53 leaves 17px, which reads as no
 room at all. Measured by the outline itself, the same 53x53 board on a phone
 leaves the corner 190 by 78px, which is the whole block at the size the page
-prints it. `cornerRoom()` takes the labels and the wood by their boxes, which
-are honest, and the bands by their own points clipped to the band of height
-being asked about; the hexagons and the stones need not be asked, sitting
-inside an outline that has been. `corner.mjs` asks the browser instead — it hit
-tests every few pixels under the block and fails if anything of the board's is
-found there, a hexagon under it being a cell that could not be tapped.
+prints it. `cornerRoom()` takes the labels by their boxes, which are honest
+lines of text, and every leaning polygon — the four bands, and the wood the
+goban is drawn on — by its own points clipped to the band of height being asked
+about; the hexagons and the stones need not be asked, sitting inside an outline
+that has been. `corner.mjs` asks the browser instead — it hit tests every few
+pixels under the block and fails if anything of the board's is found there, a
+hexagon under it being a cell that could not be tapped.
+
+The corner is measured in the layout standing there would give, not the one the
+block is in. Putting it out there is what leaves the board the width a panel
+beside it was taking, and a wider board has a wider corner, so asked the other
+way round a board that had once fallen back could never climb out again.
 
 `placeAnswer()` prints the block at the largest of three sizes that fits, and
-puts it back under the board where none does, which on the screens worth
-drawing takes a 53x53 board on a 480 by 280 screen.
+puts it back under the drawing where none does, which on the screens worth
+drawing takes a 53x53 board on a 480 by 280 screen. It stays inside the board's
+own card either way, so that fallback reads as the drawing's caption rather
+than as something adrift under it, and it stands `CLEAR` of the drawing's own
+corner rather than of the card's: on a board bound by its height the card runs
+well past the ink on both sides, and anchoring to the card would float the
+block away from the board on exactly the screens with room to spare.
 
 That and the fitting settle each other: what stands under the board says how
 much room the board has, and how big the board comes out says whether its

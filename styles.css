@@ -155,17 +155,30 @@ main {
   margin: 0.6rem 0 0;
 }
 
+/* Under the drawing, inside the board's own card, where it stands when the
+   corner has no room for it. */
 .board > .names {
+  margin: 0.4rem 0.15rem 0.15rem;
+}
+
+/* And in the drawing's corner, at the offsets app.js measures. */
+body[data-corner] .board > .names {
   position: absolute;
-  top: 0;
-  right: 0;
   margin: 0;
   text-align: right;
 }
 
-.board > .names .variants,
-.board > .names .readout-main {
+body[data-corner] .board > .names .variants,
+body[data-corner] .board > .names .readout-main {
   justify-content: flex-end;
+}
+
+/* The field is as wide as the board's longest name, so a short one printed
+   from the left leaves a gap between it and the standard name beside it.
+   Printed from the right it sits against it, and nothing moves as the pointer
+   crosses the board: the name grows leftwards inside a box that stays put. */
+body[data-corner] .board > .names .coord {
+  text-align: right;
 }
 
 .hex-board {
