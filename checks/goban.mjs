@@ -182,7 +182,7 @@ function palette() {
 
   const used = [];
   for (const node of document.querySelectorAll(
-    ".hex-board *, #moves *, #status, #readout *",
+    ".hex-board *, #moves *, #status, .readout-main *, #variants *",
   )) {
     const style = getComputedStyle(node);
     for (const property of [

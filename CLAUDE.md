@@ -46,6 +46,7 @@ worth reading as much as running.
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
+| `naming.mjs` | the one field: a tap names a cell, a name typed in finds it, and neither rubs the other out |
 | `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen, the answer beside the board on a screen wider than it is tall |
 | `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z, its longest name fitting the panel sideways |
@@ -308,6 +309,25 @@ element and then reads back every `color`, `fill`, `stroke`, `background` and
 `box-shadow` on the board and the panels beside it. It reads the hexagons first
 and insists on finding 151 of them there, so that a reading of zero means
 something.
+
+**The page names a cell in one place, and that place is a field.** What a tap
+on the board puts up is the box a coordinate is typed into to be shown one, so
+there is no separate Find panel and no second copy of the name. Three things
+fall out of that, none of them obvious from the markup:
+
+- **The field is left alone while it holds the caret.** The name follows the
+  pointer, so a field that took every update would rub out what was being typed
+  the moment the pointer crossed the board.
+- **Its width is the longest name the board can print**, and it does not follow
+  what is in it: a field that resized as the pointer moved would swing the
+  standard name beside it about. The longest name is measured off the notation
+  rather than worked out from the size, since which cell has it is not obvious
+  — on 53x53 it is `10'-26'`, neither the centre nor a corner. The width is in
+  `ch`, the width of a digit, which every name is mostly made of and none of
+  whose other characters is wider.
+- **The name is printed once.** The chips under the field are the cell's other
+  three names, so the highlight that used to say which of the four this page
+  prefers went with the duplicate.
 
 **The page carries no explanatory prose.** Everything is in `title` tooltips —
 the heading, each control, the board, each of the four names in the Cell panel.

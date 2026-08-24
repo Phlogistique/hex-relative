@@ -476,11 +476,36 @@ text {
   gap: 0.6rem;
 }
 
+/* The answer, and the box a coordinate is typed into to be shown one. It is
+   the same field: the page has one place where a cell is named, and it reads
+   as an answer until it is pointed at. */
 .coord {
   font-size: 2.1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
+  /* the width is the board's longest name, in digits, and app.js sets it */
+  box-sizing: content-box;
+  padding: 0 0.15rem;
+  background: transparent;
+  border-color: transparent;
+}
+
+/* Light and unbold, so an empty field reads as an invitation to type rather
+   than as the name of a cell. */
+.coord::placeholder {
+  color: var(--muted);
+  font-weight: 400;
+  opacity: 0.55;
+}
+
+.coord:hover {
+  border-color: var(--line);
+}
+
+.coord:focus {
+  border-color: var(--accent);
+  outline: none;
 }
 
 .standard {
@@ -497,6 +522,10 @@ text {
   list-style: none;
 }
 
+.variants:empty {
+  margin: 0;
+}
+
 .variants li {
   padding: 0.1rem 0.42rem;
   border: 1px solid var(--line);
@@ -504,11 +533,6 @@ text {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
   cursor: help;
-}
-
-.variants .is-canonical {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .placeholder {
@@ -526,21 +550,15 @@ text {
   color: var(--muted);
 }
 
-#goto-form {
-  display: flex;
-  gap: 0.4rem;
-}
-
-#goto {
-  flex: 1;
-  min-width: 0;
-}
-
 .error {
   margin: 0.45rem 0 0;
   color: var(--red);
   font-size: 0.82rem;
-  min-height: 1.1em;
+}
+
+/* No blank line held for a message that is only there after a typing slip. */
+.error:empty {
+  margin: 0;
 }
 
 .movelist {
