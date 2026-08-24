@@ -139,6 +139,15 @@ main {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0.5rem;
+  /* the corner the answer stands in, where the drawing has room for it */
+  position: relative;
+}
+
+.board > .readout-main {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
 }
 
 .hex-board {
@@ -470,17 +479,25 @@ text {
   color: var(--muted);
 }
 
+/* One line, as wide as what is in it: the corner it may have to stand in is
+   measured against this, and in the panel it keeps the standard name beside
+   the field rather than out at the edge of the card.
+
+   Everything in it is sized in em, so the whole line follows this one size and
+   app.js has a single lever to print it smaller by. */
 .readout-main {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
+  width: max-content;
+  font-size: 1rem;
 }
 
 /* The answer, and the box a coordinate is typed into to be shown one. It is
    the same field: the page has one place where a cell is named, and it reads
    as an answer until it is pointed at. */
 .coord {
-  font-size: 2.1rem;
+  font-size: 2.1em;
   font-weight: 700;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
@@ -510,7 +527,7 @@ text {
 
 .standard {
   color: var(--muted);
-  font-size: 1rem;
+  font-size: 1em;
 }
 
 .variants {
@@ -736,7 +753,7 @@ body[data-dual] .status-blue {
   }
 
   .coord {
-    font-size: 1.7rem;
+    font-size: 1.7em;
   }
 
   /* Do not reserve a blank line for a win message that is usually absent. */
@@ -781,6 +798,12 @@ body[data-dual] .status-blue {
     grid-template-columns: minmax(0, 1fr) minmax(min-content, min(9rem, 24%));
   }
 
+  /* Unless the answer is standing in the board's own corner, when nothing is
+     beside the board and the board may have the width as well. */
+  body[data-corner] main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   /* The answer keeps that name as narrow as it can: on the largest boards the
      standard name drops under the relative one rather than beside it. */
   .readout-main {
@@ -807,7 +830,7 @@ body[data-dual] .status-blue {
   }
 
   .coord {
-    font-size: 1.7rem;
+    font-size: 1.7em;
   }
 
   .status:empty {

@@ -47,6 +47,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `naming.mjs` | the one field: a tap names a cell, a name typed in finds it, and neither rubs the other out |
+| `corner.mjs` | the answer standing in the empty corner of the drawing: it covers nothing, it goes back to the panel where there is no room, and it is still the one field out there |
 | `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen, the answer beside the board on a screen wider than it is tall |
 | `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z, its longest name fitting the panel sideways |
@@ -172,6 +173,36 @@ measurement settles it; the stylesheet is asked whether the page is one column
 or two rather than the breakpoint being written down in two places. Beside the
 board rather than under it the panel keeps its own place, there is nothing to
 measure, and the cap is the stylesheet's `78vh`.
+
+**The answer to a tap stands in the corner of the drawing, where there is room
+for it.** A rhombus leaves two corners of its box with nothing in them, and the
+answer is one short line, so it goes in the top right one and the panel loses
+its largest block — which on a phone held sideways lets the board have the
+width the panel was standing in, taking the cell from 20px to 26px on a 667 by
+375 screen.
+
+What bounds that corner is not the leaning edge, which is far away, but the
+labels: the first label of the line running off the corner cuts the triangle
+down to a wide, shallow strip. Beside a 13x13 board lying down that strip is
+250 by 42px, which is the answer at the size the panel prints it; upright it is
+300 by 30, which is not, and the answer is printed smaller. On 53x53 the labels
+leave 17px and there is nowhere to put it at all, so it goes back to the panel.
+`placeAnswer()` measures the strip and prints the answer at the largest of
+three sizes that fits one, and `corner.mjs` holds down that it covers no label,
+no border and no hexagon — a hexagon under it would be a cell that could not be
+tapped.
+
+That and the fitting settle each other: what stands under the board says how
+much room the board has, and how big the board comes out says whether its
+corner will hold the answer. `fitBoard()` runs the two to a standstill, which
+takes two passes, or three if the board changed the way round it lies and its
+corner changed shape with it.
+
+It also moved where the board is worth turning. While the answer stood under
+the board, a narrow screen had to be tall before the upright drawing paid;
+now the board has the whole screen whatever the screen's shape, so a box on a
+narrow screen is always taller than it is wide and the board always stands up
+there. `turned.mjs` had to go to a wide screen to find a board lying down.
 
 On a phone held sideways, under the board is the wrong place for the answer
 altogether. That screen has almost no height, and a panel laid out for a

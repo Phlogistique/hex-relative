@@ -29,6 +29,7 @@ const ui = {
   standard: el("standard"),
   variants: el("variants"),
   cellForm: el("cell-form"),
+  cellCard: el("cell-form").closest(".card"),
   cellError: el("coord-error"),
   moves: el("moves"),
   status: el("status"),
@@ -208,6 +209,22 @@ function setStyle(mode) {
 // --- how much room the board has ------------------------------------------
 
 /**
+ * Fit the board, and stand the answer where the board it drew leaves room.
+ *
+ * The two settle each other: what has to stay under the board says how much
+ * room the board has, and how big the board comes out says whether its corner
+ * will hold the answer. So it is run to a standstill rather than in one go —
+ * two passes in practice, the third only if a board that changed the way round
+ * it lies changed its corner with it.
+ */
+function fitBoard() {
+  for (let pass = 0; pass < 3; pass++) {
+    fitOnce();
+    if (!placeAnswer()) return;
+  }
+}
+
+/**
  * Which way round to draw the board, and how tall it may be.
  *
  * The two drawings are the same board in the same box, lying down and stood on
@@ -223,7 +240,7 @@ function setStyle(mode) {
  * the panel rather than under it there is nothing to measure and the cap is the
  * stylesheet's own.
  */
-function fitBoard() {
+function fitOnce() {
   const svg = ui.board.querySelector("svg");
   if (!svg) return;
   ui.board.style.removeProperty("--board-room");
@@ -232,6 +249,69 @@ function fitBoard() {
   const cap = maxHeight(svg); // the stylesheet's own, with that out of the way
   board.fitInto(width, room ?? cap);
   if (room !== null) ui.board.style.setProperty("--board-room", `${room}px`);
+}
+
+/**
+ * Where the answer to a tap stands: the empty corner of the drawing, or the
+ * panel under the board.
+ *
+ * A rhombus leaves two corners of its box with nothing in them, and the answer
+ * is one short line, so where there is room the line goes in one of them and
+ * the panel loses its largest block. What bounds that corner is not the
+ * leaning edge, which is far away, but the labels: the first label of the line
+ * running off it cuts the triangle down to a wide, shallow strip. Beside a
+ * 13x13 board lying down that strip is 250 by 42px, which is the answer at the
+ * size the panel prints it; upright it is 300 by 30, which is not, and the
+ * answer is printed smaller. On 53x53 the labels leave 17px and there is
+ * nowhere to put it, so it goes back to the panel.
+ *
+ * The sizes are the panel's own, three quarters of it, and five eighths.
+ */
+const ANSWER_SIZES = [1, 0.78, 0.62];
+
+/**
+ * How much room the drawing leaves at the top right of its box for a line that
+ * tall, measured from the corner down.
+ *
+ * Against the labels and the border only: every hexagon is inside the border,
+ * which is the thing the corner is cut off by, and on the largest board there
+ * are 2809 of them to ask.
+ */
+function cornerRoom(height) {
+  const svg = ui.board.querySelector("svg");
+  const box = svg.getBoundingClientRect();
+  let room = box.width;
+  for (const node of svg.querySelectorAll(
+    ".labels text, .edges *, .ground *",
+  )) {
+    const ink = node.getBoundingClientRect();
+    if (ink.top >= box.top + height) continue;
+    room = Math.min(room, box.right - ink.right);
+  }
+  return room;
+}
+
+/** Stand the answer wherever it now fits. Says whether it had to move. */
+function placeAnswer() {
+  if (!ui.board.querySelector("svg")) return false;
+  // Not while it holds the caret: moving it in the DOM drops the focus, and on
+  // a phone the keyboard with it, in the middle of typing a coordinate.
+  if (document.activeElement === ui.coord) return false;
+  const was = ui.cellForm.parentElement;
+  // Measured at the size the panel prints it, which the corner scales down
+  // from, and in the panel, where the line is as wide as its own text.
+  ui.cellForm.style.removeProperty("font-size");
+  ui.cellCard.insertBefore(ui.cellForm, ui.variants);
+  const line = ui.cellForm.getBoundingClientRect();
+  const scale = ANSWER_SIZES.find(
+    (size) => cornerRoom(line.height * size) >= line.width * size,
+  );
+  if (scale) {
+    ui.cellForm.style.fontSize = `${scale}rem`;
+    ui.board.appendChild(ui.cellForm);
+  }
+  document.body.toggleAttribute("data-corner", Boolean(scale));
+  return ui.cellForm.parentElement !== was;
 }
 
 /** The stylesheet's cap on the board, `none` counting as no cap at all. */
@@ -285,11 +365,15 @@ function roomForBoard(svg) {
   // The answer itself, rather than the whole panel: the other names of the
   // cell sit under it and can wait for a scroll. It is also the one part whose
   // height does not depend on what has been tapped, so the board keeps still.
-  const answer = document.querySelector(".side .card .readout-main");
   const columns = getComputedStyle(main).gridTemplateColumns.split(" ").length;
-  if (columns > 1 || !answer) return null;
+  if (columns > 1) return null;
   const box = svg.getBoundingClientRect();
-  const below = answer.getBoundingClientRect().bottom - box.bottom;
+  // Standing in the board's own corner it is above the foot of the board and
+  // takes nothing from it, and the board may have the whole screen.
+  const below = Math.max(
+    0,
+    ui.cellForm.getBoundingClientRect().bottom - box.bottom,
+  );
   const room = steadyHeight() - below;
   // A screen with no room for the answer at all leaves nothing to measure
   // against, and a cap of nothing would draw a board of nothing.
@@ -314,6 +398,12 @@ function fitField(size) {
     }
   }
   ui.coord.style.width = `${widest}ch`;
+  // The standard name beside it is held to its own longest, which is the far
+  // corner: the last column is the longest word and the last row the longest
+  // number. Both held, the line is the same width whatever is in it, so it
+  // does not shuffle about under a moving pointer, and the corner it may be
+  // asked to stand in is measured against the widest it will ever be.
+  ui.standard.style.minWidth = `${standard(size - 1, size - 1).length}ch`;
 }
 
 function setSize(size) {

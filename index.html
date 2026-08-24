@@ -147,22 +147,20 @@
           >
             Cell
           </h2>
-          <form id="cell-form" autocomplete="off">
-            <div class="readout-main">
-              <input
-                id="coord"
-                class="coord"
-                type="text"
-                autocapitalize="off"
-                autocomplete="off"
-                autocorrect="off"
-                spellcheck="false"
-                placeholder="5'2"
-                aria-label="Coordinate"
-                title="What a tap on the board names, and where to type a coordinate to be shown one: 5'2, 8'-2, 10-4, or a standard coordinate such as d5"
-              />
-              <span id="standard" class="standard"></span>
-            </div>
+          <form id="cell-form" class="readout-main" autocomplete="off">
+            <input
+              id="coord"
+              class="coord"
+              type="text"
+              autocapitalize="off"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="—"
+              aria-label="Coordinate"
+              title="What a tap on the board names, and where to type a coordinate to be shown one: 5'2, 8'-2, 10-4, or a standard coordinate such as d5"
+            />
+            <span id="standard" class="standard"></span>
           </form>
           <ul id="variants" class="variants"></ul>
           <p id="coord-error" class="error"></p>
