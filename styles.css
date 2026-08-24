@@ -143,11 +143,29 @@ main {
   position: relative;
 }
 
-.board > .readout-main {
+/* Everything the page has to say about a cell, in one block: the name, the
+   standard name beside it, and the cell's other three names under them. It is
+   as wide as its own widest line so that the corner it may stand in can be
+   measured against it, and it carries no frame of its own — in the corner it
+   is part of the drawing, and under the board it is the only thing there. */
+.names {
+  width: max-content;
+  max-width: 100%;
+  font-size: 1rem;
+  margin: 0.6rem 0 0;
+}
+
+.board > .names {
   position: absolute;
   top: 0;
   right: 0;
   margin: 0;
+  text-align: right;
+}
+
+.board > .names .variants,
+.board > .names .readout-main {
+  justify-content: flex-end;
 }
 
 .hex-board {
@@ -479,18 +497,12 @@ text {
   color: var(--muted);
 }
 
-/* One line, as wide as what is in it: the corner it may have to stand in is
-   measured against this, and in the panel it keeps the standard name beside
-   the field rather than out at the edge of the card.
-
-   Everything in it is sized in em, so the whole line follows this one size and
-   app.js has a single lever to print it smaller by. */
+/* The name and the standard name beside it. Everything in the block is sized
+   in em, so the whole of it follows the one size app.js prints it at. */
 .readout-main {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
-  width: max-content;
-  font-size: 1rem;
 }
 
 /* The answer, and the box a coordinate is typed into to be shown one. It is
@@ -533,8 +545,8 @@ text {
 .variants {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin: 0.7rem 0 0;
+  gap: 0.3em;
+  margin: 0.5em 0 0;
   padding: 0;
   list-style: none;
 }
@@ -544,10 +556,10 @@ text {
 }
 
 .variants li {
-  padding: 0.1rem 0.42rem;
+  padding: 0.1em 0.42em;
   border: 1px solid var(--line);
   border-radius: 5px;
-  font-size: 0.85rem;
+  font-size: 0.85em;
   font-variant-numeric: tabular-nums;
   cursor: help;
 }
@@ -568,9 +580,9 @@ text {
 }
 
 .error {
-  margin: 0.45rem 0 0;
+  margin: 0.45em 0 0;
   color: var(--red);
-  font-size: 0.82rem;
+  font-size: 0.82em;
 }
 
 /* No blank line held for a message that is only there after a typing slip. */

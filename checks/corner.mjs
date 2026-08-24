@@ -1,65 +1,66 @@
 /**
- * The answer standing in the corner of the drawing.
+ * The cell's names standing in the corner of the drawing.
  *
- * A rhombus leaves two corners of its box empty, so where there is room the
- * answer to a tap goes in one of them rather than in the panel under the
- * board, and the board keeps the width the panel would have taken.
+ * A rhombus leaves two corners of its box with nothing in them, so what the
+ * page has to say about a cell — its name, its standard name, and its other
+ * three names — goes in the top right one, and nothing stands under the board
+ * at all.
  *
- * Three things have to hold. It covers nothing: not a label, not a border, and
- * not a hexagon, which is the click target and would go dead under it. Where
- * there is no room it goes back to the panel, which is what the largest board
- * is here for — 53x53 leaves the width of two digits. And it is still the same
- * field when it is out there: a tap names a cell in it, and a name typed into
- * it still finds one.
+ * How much room that corner has is the whole question, and it is easy to
+ * measure wrongly: the coloured edges are one polygon per flank, running
+ * diagonally, so the bounding box of a single band covers the entire corner
+ * and says there is no room where there is most of it. What is asked here
+ * instead is the browser's own hit testing, point by point under the block:
+ * anything of the board's found under it is something the block is covering,
+ * and a hexagon under it would be a cell that could no longer be tapped.
+ *
+ * Where the block genuinely does not fit — a small screen and the largest
+ * board — it goes back under the board, and that is checked too.
  */
 import { check, pad } from "./lib/browser.mjs";
 
-/** Where the answer stands, how big the board came out, and what it covers. */
+/** Where the block stands, and what of the board's is underneath it. */
 const stands = () => {
-  const line = document.querySelector(".readout-main");
+  const block = document.querySelector("#names");
   const svg = document.querySelector(".hex-board");
   const box = svg.getBoundingClientRect();
   const view = svg.viewBox.baseVal;
-  const seat = line.getBoundingClientRect();
-  const covered = [
-    ...svg.querySelectorAll(".labels text, .edges *, .ground *, .cells .hex"),
-  ].filter((node) => {
-    const ink = node.getBoundingClientRect();
-    return (
-      ink.width > 0 &&
-      ink.left < seat.right &&
-      ink.right > seat.left &&
-      ink.top < seat.bottom &&
-      ink.bottom > seat.top
-    );
-  });
+  block.scrollIntoView({ block: "center" });
+  const seat = block.getBoundingClientRect();
+  const under = new Set();
+  const STEP = 4;
+  for (let y = seat.top + 1; y < seat.bottom; y += STEP) {
+    for (let x = seat.left + 1; x < seat.right; x += STEP) {
+      for (const node of document.elementsFromPoint(x, y)) {
+        if (node !== svg && svg.contains(node)) {
+          under.add(node.tagName + "." + (node.getAttribute("class") ?? ""));
+        }
+      }
+    }
+  }
   return {
-    corner: line.parentElement.classList.contains("board"),
-    scale: line.style.fontSize || "the panel's own",
-    line: `${Math.round(seat.width)}x${Math.round(seat.height)}`,
-    columns: getComputedStyle(
-      document.querySelector("main"),
-    ).gridTemplateColumns.split(" ").length,
+    corner: block.parentElement.classList.contains("board"),
+    size: block.style.fontSize || "the page's own",
+    block: `${Math.round(seat.width)}x${Math.round(seat.height)}`,
     cell:
       Math.round(
         Math.sqrt(3) *
           Math.min(box.width / view.width, box.height / view.height) *
           10,
       ) / 10,
-    covers: covered.map(
-      (node) => node.textContent || node.getAttribute("class"),
-    ),
+    under: [...under],
   };
 };
 
 const SCREENS = [
   ["desktop", { width: 1280, height: 900 }, false],
   ["portrait", { width: 390, height: 844 }, true],
+  ["small portrait", { width: 320, height: 568 }, true],
   ["landscape", { width: 914, height: 411 }, true],
   ["small landscape", { width: 667, height: 375 }, true],
 ];
 
-await check("The answer in the corner", async ({ open }) => {
+await check("The cell's names in the corner", async ({ open }) => {
   for (const [label, viewport, mobile] of SCREENS) {
     for (const size of [13, 53]) {
       const page = await open(`#${size}n,`, {
@@ -68,28 +69,47 @@ await check("The answer in the corner", async ({ open }) => {
         hasTouch: mobile,
         deviceScaleFactor: 2,
       });
+      await page.selectOption("#mode", "inspect");
+      await page
+        .locator(".cells .cell")
+        .nth(Math.floor((size * size) / 3))
+        .click();
       const got = await page.evaluate(stands);
       console.log(
         `  ${pad(label, 16)}${pad(`${size}x${size}`, 7)}` +
-          `${pad(got.corner ? "corner" : "panel", 8)}at ${pad(got.scale, 18)}` +
-          `line ${pad(got.line, 9)}cell ${pad(`${got.cell}px`, 8)}` +
-          `${got.columns} column${got.columns > 1 ? "s" : ""}` +
-          `${got.covers.length ? `  COVERS ${got.covers.slice(0, 4).join(" ")}` : ""}`,
+          `${pad(got.corner ? "corner" : "under the board", 16)}` +
+          `at ${pad(got.size, 16)}block ${pad(got.block, 9)}` +
+          `cell ${pad(`${got.cell}px`, 8)}` +
+          `${got.under.length ? `COVERS ${got.under.slice(0, 3).join(" ")}` : "covering nothing"}`,
       );
-      if (got.covers.length) {
+      if (got.under.length) {
         throw new Error(
-          `${label} ${size}: the answer covers ${got.covers.length} things, ` +
-            `the first being ${got.covers[0]}`,
+          `${label} ${size}: the block covers ${got.under.join(", ")}`,
         );
       }
-      // The largest board prints its labels right into the corner, so there is
-      // nowhere out there for the answer and it belongs in the panel.
-      if (size === 53 && got.corner) {
-        throw new Error(`${label}: 53x53 left room in the corner`);
-      }
+      // Every one of these has room in the corner. The board is drawn as big
+      // as the screen allows, and the corner grows with it, so a screen that
+      // can show the board at all can generally hold the names out there.
+      if (!got.corner) throw new Error(`${label} ${size}: not in the corner`);
       await page.close();
     }
   }
+
+  // Where it does not fit it goes back under the board: the largest board on a
+  // screen with almost no height leaves a corner narrower than the names are.
+  const cramped = await open("#53n,", {
+    viewport: { width: 480, height: 280 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  const back = await cramped.evaluate(stands);
+  console.log(
+    `  ${pad("cramped", 16)}${pad("53x53", 7)}` +
+      `${pad(back.corner ? "corner" : "under the board", 16)}` +
+      `at ${pad(back.size, 16)}block ${pad(back.block, 9)}`,
+  );
+  if (back.corner) throw new Error("480x280 kept 53x53's names in the corner");
+  await cramped.close();
 
   // Out in the corner it is still the one field: the answer to a tap, and the
   // box a coordinate is typed into to be shown one.
@@ -105,9 +125,12 @@ await check("The answer in the corner", async ({ open }) => {
     .tap();
   const tapped = await page.evaluate(() => ({
     corner: document
-      .querySelector(".readout-main")
+      .querySelector("#names")
       .parentElement.classList.contains("board"),
     name: document.querySelector("#coord").value,
+    others: [...document.querySelectorAll("#variants li")].map(
+      (node) => node.textContent,
+    ),
   }));
   await page.fill("#coord", "8'-2");
   await page.press("#coord", "Enter");
@@ -116,11 +139,14 @@ await check("The answer in the corner", async ({ open }) => {
     marked: document.querySelectorAll(".hex-marked").length,
   }));
   console.log(
-    `  ${pad("in the corner", 16)}a tap names ${tapped.name}, and 8'-2 typed into it ` +
-      `rings ${typed.marked} cell and comes back as ${typed.name}`,
+    `  ${pad("in the corner", 16)}a tap names ${tapped.name}, also ` +
+      `${tapped.others.join(" ")}; 8'-2 typed into it rings ${typed.marked} ` +
+      `cell and comes back as ${typed.name}`,
   );
-  if (!tapped.corner) throw new Error("the answer was not in the corner");
+  if (!tapped.corner) throw new Error("the names were not in the corner");
   if (tapped.name !== "4'4") throw new Error(`a tap named ${tapped.name}`);
+  if (tapped.others.length !== 3)
+    throw new Error(`${tapped.others.length} other names out there`);
   // 8'2 and 62 are the same cell on this board, and 62 is the name this page
   // prefers, so that is what the field holds once the cell has been found.
   if (typed.name !== "62" || typed.marked !== 1) {

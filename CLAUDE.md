@@ -47,7 +47,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `naming.mjs` | the one field: a tap names a cell, a name typed in finds it, and neither rubs the other out |
-| `corner.mjs` | the answer standing in the empty corner of the drawing: it covers nothing, it goes back to the panel where there is no room, and it is still the one field out there |
+| `corner.mjs` | the cell's names standing in the empty corner of the drawing: they cover nothing, they go back under the board where there is no room, and it is still the one field out there |
 | `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen, the answer beside the board on a screen wider than it is tall |
 | `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z, its longest name fitting the panel sideways |
@@ -174,23 +174,32 @@ or two rather than the breakpoint being written down in two places. Beside the
 board rather than under it the panel keeps its own place, there is nothing to
 measure, and the cap is the stylesheet's `78vh`.
 
-**The answer to a tap stands in the corner of the drawing, where there is room
-for it.** A rhombus leaves two corners of its box with nothing in them, and the
-answer is one short line, so it goes in the top right one and the panel loses
-its largest block — which on a phone held sideways lets the board have the
-width the panel was standing in, taking the cell from 20px to 26px on a 667 by
-375 screen.
+**Everything the page says about a cell stands in the corner of the drawing.**
+A rhombus leaves two corners of its box with nothing in them, and what there is
+to say is four short names, so the whole block goes in the top right one: the
+name, the standard name beside it, the other three under them, and no frame
+around any of it. Nothing stands under the board then, which is why a phone
+held sideways gets the width the panel used to take — the cell went from 20px
+to 26px on a 667 by 375 screen — and why the page is 470px shorter held
+upright.
 
-What bounds that corner is not the leaning edge, which is far away, but the
-labels: the first label of the line running off the corner cuts the triangle
-down to a wide, shallow strip. Beside a 13x13 board lying down that strip is
-250 by 42px, which is the answer at the size the panel prints it; upright it is
-300 by 30, which is not, and the answer is printed smaller. On 53x53 the labels
-leave 17px and there is nowhere to put it at all, so it goes back to the panel.
-`placeAnswer()` measures the strip and prints the answer at the largest of
-three sizes that fits one, and `corner.mjs` holds down that it covers no label,
-no border and no hexagon — a hexagon under it would be a cell that could not be
-tapped.
+That corner is bigger than it looks and much bigger than a bounding box says,
+which is worth stating because believing the box cost this idea a whole round.
+**The coloured edges are one polygon per flank, running diagonally, so the box
+of a single band covers the entire corner**: measured that way, a 13x13 board
+leaves a shallow strip 250 by 42px and 53x53 leaves 17px, which reads as no
+room at all. Measured by the outline itself, the same 53x53 board on a phone
+leaves the corner 190 by 78px, which is the whole block at the size the page
+prints it. `cornerRoom()` takes the labels and the wood by their boxes, which
+are honest, and the bands by their own points clipped to the band of height
+being asked about; the hexagons and the stones need not be asked, sitting
+inside an outline that has been. `corner.mjs` asks the browser instead — it hit
+tests every few pixels under the block and fails if anything of the board's is
+found there, a hexagon under it being a cell that could not be tapped.
+
+`placeAnswer()` prints the block at the largest of three sizes that fits, and
+puts it back under the board where none does, which on the screens worth
+drawing takes a 53x53 board on a 480 by 280 screen.
 
 That and the fitting settle each other: what stands under the board says how
 much room the board has, and how big the board comes out says whether its

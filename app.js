@@ -29,7 +29,7 @@ const ui = {
   standard: el("standard"),
   variants: el("variants"),
   cellForm: el("cell-form"),
-  cellCard: el("cell-form").closest(".card"),
+  names: el("names"),
   cellError: el("coord-error"),
   moves: el("moves"),
   status: el("status"),
@@ -252,66 +252,93 @@ function fitOnce() {
 }
 
 /**
- * Where the answer to a tap stands: the empty corner of the drawing, or the
- * panel under the board.
+ * Where the cell's names stand: the empty corner of the drawing, or under the
+ * board.
  *
- * A rhombus leaves two corners of its box with nothing in them, and the answer
- * is one short line, so where there is room the line goes in one of them and
- * the panel loses its largest block. What bounds that corner is not the
- * leaning edge, which is far away, but the labels: the first label of the line
- * running off it cuts the triangle down to a wide, shallow strip. Beside a
- * 13x13 board lying down that strip is 250 by 42px, which is the answer at the
- * size the panel prints it; upright it is 300 by 30, which is not, and the
- * answer is printed smaller. On 53x53 the labels leave 17px and there is
- * nowhere to put it, so it goes back to the panel.
+ * A rhombus leaves two corners of its box with nothing in them, and what the
+ * page has to say about a cell is four short names, so where there is room it
+ * all goes in the top right one and nothing stands under the board at all.
+ * Where there is not — a small screen and a large board — it goes back
+ * underneath.
  *
- * The sizes are the panel's own, three quarters of it, and five eighths.
+ * The sizes are the size the page prints it at, three quarters of that, and
+ * five eighths.
  */
 const ANSWER_SIZES = [1, 0.78, 0.62];
 
 /**
- * How much room the drawing leaves at the top right of its box for a line that
- * tall, measured from the corner down.
+ * How far the drawing's ink keeps clear of the right edge of its box, down to
+ * this depth: how wide a block may stand in that corner.
  *
- * Against the labels and the border only: every hexagon is inside the border,
- * which is the thing the corner is cut off by, and on the largest board there
- * are 2809 of them to ask.
+ * Bounding boxes will not answer this, and believing them cost this page the
+ * whole idea once. The coloured edges are one polygon per flank, running
+ * diagonally, so the box of a single band covers the entire corner and reports
+ * no room where there is most of it. They are measured by their own outline
+ * instead. Nothing else needs it: the labels are lines of text, the wood is a
+ * box of a polygon either way round, and the hexagons and the stones sit
+ * inside the outline that has already been asked.
  */
-function cornerRoom(height) {
+function cornerRoom(depth) {
   const svg = ui.board.querySelector("svg");
   const box = svg.getBoundingClientRect();
-  let room = box.width;
-  for (const node of svg.querySelectorAll(
-    ".labels text, .edges *, .ground *",
-  )) {
-    const ink = node.getBoundingClientRect();
-    if (ink.top >= box.top + height) continue;
-    room = Math.min(room, box.right - ink.right);
+  const bottom = box.top + depth;
+  let reach = box.left;
+  for (const text of svg.querySelectorAll(".labels text")) {
+    const ink = text.getBoundingClientRect();
+    if (ink.top < bottom) reach = Math.max(reach, ink.right);
   }
-  return room;
+  for (const outline of svg.querySelectorAll("polygon.band, polygon.border")) {
+    reach = Math.max(reach, rightmostIn(outline, box.top, bottom));
+  }
+  const wood = svg.querySelector("polygon.wood");
+  if (wood) reach = Math.max(reach, wood.getBoundingClientRect().right);
+  return box.right - reach;
 }
 
-/** Stand the answer wherever it now fits. Says whether it had to move. */
+/** How far right a polygon's outline reaches between two heights on screen. */
+function rightmostIn(polygon, top, bottom) {
+  const matrix = polygon.getScreenCTM();
+  const points = [...polygon.points].map((point) =>
+    point.matrixTransform(matrix),
+  );
+  let reach = -Infinity;
+  for (const [index, from] of points.entries()) {
+    const to = points[(index + 1) % points.length];
+    if (from.y >= top && from.y <= bottom) reach = Math.max(reach, from.x);
+    // An edge that leaves the band counts where it crosses out of it.
+    for (const y of [top, bottom]) {
+      if ((from.y - y) * (to.y - y) < 0) {
+        reach = Math.max(
+          reach,
+          from.x + ((to.x - from.x) * (y - from.y)) / (to.y - from.y),
+        );
+      }
+    }
+  }
+  return reach;
+}
+
+/** Stand the cell's names wherever they now fit. Says whether they moved. */
 function placeAnswer() {
   if (!ui.board.querySelector("svg")) return false;
-  // Not while it holds the caret: moving it in the DOM drops the focus, and on
-  // a phone the keyboard with it, in the middle of typing a coordinate.
+  // Not while the field holds the caret: moving it in the DOM drops the focus,
+  // and on a phone the keyboard with it, in the middle of typing a coordinate.
   if (document.activeElement === ui.coord) return false;
-  const was = ui.cellForm.parentElement;
-  // Measured at the size the panel prints it, which the corner scales down
-  // from, and in the panel, where the line is as wide as its own text.
-  ui.cellForm.style.removeProperty("font-size");
-  ui.cellCard.insertBefore(ui.cellForm, ui.variants);
-  const line = ui.cellForm.getBoundingClientRect();
+  const was = ui.names.parentElement;
+  // Measured under the board at the size the page prints it, which the corner
+  // scales down from.
+  ui.names.style.removeProperty("font-size");
+  ui.board.after(ui.names);
+  const block = ui.names.getBoundingClientRect();
   const scale = ANSWER_SIZES.find(
-    (size) => cornerRoom(line.height * size) >= line.width * size,
+    (size) => cornerRoom(block.height * size) >= block.width * size,
   );
   if (scale) {
-    ui.cellForm.style.fontSize = `${scale}rem`;
-    ui.board.appendChild(ui.cellForm);
+    ui.names.style.fontSize = `${scale}rem`;
+    ui.board.appendChild(ui.names);
   }
   document.body.toggleAttribute("data-corner", Boolean(scale));
-  return ui.cellForm.parentElement !== was;
+  return ui.names.parentElement !== was;
 }
 
 /** The stylesheet's cap on the board, `none` counting as no cap at all. */
