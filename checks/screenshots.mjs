@@ -54,12 +54,16 @@ await check("Screenshots", async ({ open }) => {
   // Upright, where the rhombus is turned to stand on its long diagonal: the
   // labels are the thing to look at, every one of them now standing off an
   // edge that leans, in two lines that run diagonally away from the board.
-  for (const [name, style] of [
-    ["phone.png", "hex"],
-    ["phone-goban.png", "goban"],
+  for (const [name, style, viewport] of [
+    ["phone.png", "hex", { width: 390, height: 844 }],
+    ["phone-goban.png", "goban", { width: 390, height: 844 }],
+    // and held sideways, where the board lies down again and the answer to a
+    // tap stands beside it rather than under it
+    ["sideways.png", "hex", { width: 852, height: 393 }],
+    ["sideways-goban.png", "goban", { width: 852, height: 393 }],
   ]) {
     const phone = await open("#13n,d10j9d5j4c2b5b8", {
-      viewport: { width: 390, height: 844 },
+      viewport,
       isMobile: true,
       hasTouch: true,
       deviceScaleFactor: 2,

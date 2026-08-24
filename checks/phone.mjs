@@ -1,7 +1,7 @@
 /**
- * The page on a phone. The screen is narrow and the board wants to be big, so
+ * The page on a phone. The screen is small and the board wants to be big, so
  * what matters is that nothing overflows sideways and that the board, with the
- * answer to a tap under it, fits on the screen.
+ * answer to a tap beside it or under it, fits on the screen.
  *
  * Fits on the screen, not fits under the toolbar: what stands above the board
  * the reader can scroll off the top, so it is not taken from the board, and on
@@ -11,6 +11,10 @@
  * board and that answer together are what has to fit, and that is measured
  * here against `svh`, the screen a phone promises whatever its URL bar is
  * doing.
+ *
+ * Where they fit is the other half of it. A screen wider than it is tall has
+ * height to spare nowhere and width to spare beside the board, so the answer
+ * sits alongside rather than underneath, where it costs the board nothing.
  *
  * Which way round each of these screens drew the board is printed;
  * checks/turned.mjs is where the turn itself is held down.
@@ -67,16 +71,30 @@ await check("On a phone", async ({ open }) => {
       board: Math.round(
         document.querySelector(".board").getBoundingClientRect().top,
       ),
-      // The board and what has to stay under it, against the screen they have
-      // to fit in: the bottom of the answer to a tap, measured from the top of
-      // the board rather than from the top of the page, since everything above
-      // the board scrolls away.
+      // The board and the answer to a tap, against the screen they have to fit
+      // in: the lower of their two feet, measured from the top of the board
+      // rather than from the top of the page, since everything above the board
+      // scrolls away. Under the board the answer's foot is the lower; beside
+      // it, as it is on a screen that is wider than it is tall, the board's
+      // own height is the whole of what has to fit.
       needs: (() => {
         const box = document
           .querySelector(".hex-board")
           .getBoundingClientRect();
         const answer = document.querySelector(".readout-main");
-        return Math.round(answer.getBoundingClientRect().bottom - box.top);
+        return Math.round(
+          Math.max(answer.getBoundingClientRect().bottom, box.bottom) - box.top,
+        );
+      })(),
+      // Whether the answer is under the board or beside it.
+      beside: (() => {
+        const box = document
+          .querySelector(".hex-board")
+          .getBoundingClientRect();
+        return (
+          document.querySelector(".readout-main").getBoundingClientRect().top <
+          box.bottom
+        );
       })(),
       screen: (() => {
         const probe = document.createElement("div");
@@ -92,6 +110,7 @@ await check("On a phone", async ({ open }) => {
     console.log(
       `  ${pad(label, 16)}board at ${pad(got.board, 5)}, and board plus answer ` +
         `${pad(got.needs, 5)} of ${pad(got.screen, 5)}` +
+        `  ${pad(got.beside ? "answer beside" : "answer under", 14)}` +
         `  ${pad(got.drawn, 5)} ${pad(`cell ${got.cell}px`, 12)}` +
         `${pad(`${got.slack}px of width to spare`, 24)}` +
         `  ${got.scroll > got.client ? "OVERFLOWS" : "no sideways overflow"}`,
@@ -103,6 +122,12 @@ await check("On a phone", async ({ open }) => {
       throw new Error(
         `${label}: board and answer want ${got.needs}px of ${got.screen}`,
       );
+    }
+    // Height is what a screen wider than it is tall has none of, and the
+    // answer under the board would spend a third of it saying one coordinate
+    // while the width beside the board went unused.
+    if (viewport.width > viewport.height && !got.beside) {
+      throw new Error(`${label}: the answer is under the board`);
     }
     await page.close();
   }

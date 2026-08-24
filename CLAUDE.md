@@ -46,9 +46,9 @@ worth reading as much as running.
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
-| `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen |
+| `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen, the answer beside the board on a screen wider than it is tall |
 | `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
-| `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z |
+| `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z, its longest name fitting the panel sideways |
 | `screenshots.mjs` | writes PNGs next to itself, for what only the eye can judge |
 
 `checks/lib/browser.mjs` holds the plumbing: it serves the repository itself,
@@ -172,12 +172,22 @@ or two rather than the breakpoint being written down in two places. Beside the
 board rather than under it the panel keeps its own place, there is nothing to
 measure, and the cap is the stylesheet's `78vh`.
 
-The one screen where that cap bites is a phone held sideways, which has almost
-no height and a panel laid out for a desktop: the answer alone was taking a
-third of the screen, so the same trims a narrow screen gets are given to a
-short one, and what they free goes into the board. `phone.mjs` prints how much
-of the screen the board and its answer want, and refuses to pass if that is
-more than there is.
+On a phone held sideways, under the board is the wrong place for the answer
+altogether. That screen has almost no height, and a panel laid out for a
+desktop spends a third of it saying one coordinate — a third of the one
+dimension the board has none of, while a third of the width goes unused beside
+it. So there the answer goes back alongside the board, the rest of the panel
+underneath at the full width, and the board is left the whole screen to be as
+tall as it likes: on a 844 by 390 screen the cell went from 19px to 26px. The
+column it stands in is 9rem, or a quarter of a screen that cannot spare that,
+or as wide as the longest name on the board if that is wider still — which on
+53x53 it is, `10'-26'` being seven characters where 13x13's longest name is
+four.
+
+`phone.mjs` prints how much of the screen the board and its answer want and
+refuses to pass if that is more than there is, and refuses too if the answer is
+back under the board on a screen wider than it is tall; the longest name is
+`large.mjs`, which asks for it sideways and insists the page does not overflow.
 
 Which way round draws the bigger board is not the same question as which way
 round the box leans, and taking the second for the first cost this page a band

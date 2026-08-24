@@ -731,12 +731,16 @@ body[data-dual] .status-blue {
 /* A phone held sideways has plenty of width and almost no height, so the
    masthead gives way to the board.
 
-   Height is what the board is short of there, and it is the one screen where
-   the answer to a tap is what binds: it is the board's own height that has to
-   leave room for it, and on a wide screen the panel is laid out for a desktop
-   and takes a third of the screen to say one coordinate. So the panel is
-   trimmed as it is on a narrow screen — the same trims, for the same reason —
-   and what that frees goes straight into the board. */
+   Height is what the board is short of there, and under the board is the one
+   place the answer to a tap may not be: saying one coordinate takes a third of
+   the screen out of the dimension the board has none of, while a third of the
+   width goes unused beside it. So the answer goes back alongside the board,
+   where it costs the board nothing, the rest of the panel follows underneath
+   at the full width, and the board is left the whole screen to be as tall as
+   it likes.
+
+   The rest is trimmed as it is on a narrow screen — the same trims, for the
+   same reason. */
 @media (max-height: 500px) and (orientation: landscape) {
   body {
     padding-top: 0.6rem;
@@ -753,6 +757,31 @@ body[data-dual] .status-blue {
 
   main {
     gap: 1rem;
+    /* 9rem is a coordinate and its standard name on one line; a screen with
+       none to spare gives a quarter of itself instead, and one whose longest
+       name does not fit in that gives the name what it needs. */
+    grid-template-columns: minmax(0, 1fr) minmax(min-content, min(9rem, 24%));
+  }
+
+  /* The answer keeps that name as narrow as it can: on the largest boards the
+     standard name drops under the relative one rather than beside it. */
+  .readout-main {
+    flex-wrap: wrap;
+  }
+
+  /* Only the answer goes beside the board. The cards under it are read at
+     leisure and keep the full width, the stone list needing it. */
+  .side {
+    display: contents;
+  }
+
+  .side .card + .card {
+    grid-column: 1 / -1;
+  }
+
+  /* Nothing stands under the board, so the board may have the screen. */
+  .hex-board {
+    max-height: 100svh;
   }
 
   .card {
