@@ -231,10 +231,15 @@ function setStyle(mode) {
 function fitBoard() {
   const svg = ui.board.querySelector("svg");
   if (!svg) return;
-  ui.board.style.removeProperty("--board-room");
+  // Measure before writing. Clearing last time's cap first is the obvious move,
+  // and it makes every tap and every resize force a layout of some thousands of
+  // SVG elements. It also buys nothing: the cap is a `max-height` on an SVG
+  // whose width is a percentage, so it letterboxes the drawing rather than
+  // narrowing it, and it moves the foot of the board and everything under it
+  // together, leaving the gap `roomForBoard` measures where it was.
   const width = svg.getBoundingClientRect().width;
   const room = roomForBoard(svg);
-  const cap = maxHeight(svg); // the stylesheet's own, with that out of the way
+  const cap = maxHeight(svg);
   board.fitInto(width, room ?? cap);
   if (room !== null) ui.board.style.setProperty("--board-room", `${room}px`);
 }

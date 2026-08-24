@@ -853,12 +853,16 @@ export class HexBoard {
   /** Repaint stones, move numbers and highlights without rebuilding the SVG. */
   paint() {
     for (const { hex, stone, label } of this.cells.values()) {
-      stone.setAttribute("class", "stone hidden");
-      label.textContent = "";
-      hex.setAttribute("class", "hex");
+      attr(stone, "class", "stone hidden");
+      if (label.textContent) label.textContent = "";
+      attr(hex, "class", "hex");
     }
 
     const { stones, last } = this.position();
+    // Every move number is drawn in the same font, so where its ink sits is one
+    // measurement, not one per stone: the loop above has dirtied the styles, so
+    // reading it back costs a style recalculation each time.
+    let centre = null;
     for (const [at, stone] of stones) {
       const cell = this.cells.get(at);
       if (!cell) continue;
@@ -867,7 +871,8 @@ export class HexBoard {
         `stone stone-${stone.color}${at === last ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
-        cell.label.setAttribute("y", inkHalf(cell.label));
+        centre ??= inkHalf(cell.label);
+        cell.label.setAttribute("y", centre);
         cell.label.textContent = String(stone.number);
         cell.label.setAttribute("class", `stone-label on-${stone.color}`);
       }
@@ -961,6 +966,12 @@ function apply(l, at, bounds) {
   bounds.minY = Math.min(bounds.minY, at.box[1]);
   bounds.maxX = Math.max(bounds.maxX, at.box[2]);
   bounds.maxY = Math.max(bounds.maxY, at.box[3]);
+}
+
+/** Write an attribute only where it would change: clearing the board otherwise
+    writes the same class back to a few thousand cells that already have it. */
+function attr(node, name, value) {
+  if (node.getAttribute(name) !== value) node.setAttribute(name, value);
 }
 
 /** Half the height of the digits' ink, in the font this label is drawn in. */

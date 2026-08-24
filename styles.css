@@ -381,11 +381,15 @@ main {
 
 /* --- the slab --- */
 
+/* No `filter` here. The slab covers the board, so a drop-shadow on it sends
+   every tile of the board through the filter, and pinch-zooming rasterises the
+   lot again at each scale: it was a third of the cost of drawing the goban. The
+   rim stroke above was already drawing most of what it appeared to — dropping
+   it moves 2% of the pixels, in a hairline along the slab's own edge. */
 .wood {
   fill: url(#goban-wood);
   stroke: var(--wood-rim);
   stroke-linejoin: round;
-  filter: drop-shadow(0 0.08px 0.2px rgba(0, 0, 0, 0.38));
 }
 
 .sheen-black {
