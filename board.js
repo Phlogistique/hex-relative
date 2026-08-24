@@ -422,6 +422,23 @@ export class HexBoard {
     const edgeLayer = group(svg, "edges");
     const labelLayer = group(svg, "labels");
 
+    // The labels go in first, alone, and the board is drawn around them after.
+    // Asking a label how wide it is lays out the whole drawing with it — ten
+    // thousand elements on the largest board — for an answer thrown away as
+    // soon as the labels are placed. Against empty layers it lays out the
+    // labels. They land where they always did, the viewBox they are measured
+    // at being the same provisional one either way.
+    const labels = this.buildLabels(labelLayer);
+    this.svg = svg;
+    this.container.replaceChildren(svg);
+    setViewBox(svg, this.layoutLabels(labels, board));
+    // Where a move number's ink sits, asked here for the same reason. The font
+    // is the stylesheet's and the same on every board, so one throwaway label
+    // answers for all of them and `paint` need not ask with the cells in.
+    const probe = text(labelLayer, "", "stone-label");
+    this.numberInk = inkHalf(probe);
+    probe.remove();
+
     if (dual) {
       if (this.style === "goban") this.buildWood(groundLayer);
       this.buildGrid(groundLayer);
@@ -437,13 +454,6 @@ export class HexBoard {
     }
     if (dual) this.buildBands(edgeLayer);
     else this.buildEdges(edgeLayer);
-    const labels = this.buildLabels(labelLayer);
-
-    this.svg = svg;
-    // Labels can only be measured once they are being rendered, so they go in
-    // unplaced, get positioned, and only then does the viewBox close in.
-    this.container.replaceChildren(svg);
-    setViewBox(svg, this.layoutLabels(labels, board));
     this.paint();
   }
 
@@ -859,10 +869,6 @@ export class HexBoard {
     }
 
     const { stones, last } = this.position();
-    // Every move number is drawn in the same font, so where its ink sits is one
-    // measurement, not one per stone: the loop above has dirtied the styles, so
-    // reading it back costs a style recalculation each time.
-    let centre = null;
     for (const [at, stone] of stones) {
       const cell = this.cells.get(at);
       if (!cell) continue;
@@ -871,8 +877,7 @@ export class HexBoard {
         `stone stone-${stone.color}${at === last ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
-        centre ??= inkHalf(cell.label);
-        cell.label.setAttribute("y", centre);
+        cell.label.setAttribute("y", this.numberInk);
         cell.label.textContent = String(stone.number);
         cell.label.setAttribute("class", `stone-label on-${stone.color}`);
       }
