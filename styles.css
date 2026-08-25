@@ -210,19 +210,23 @@ body[data-corner] .board > .names .coord {
   stroke-width: 0.05;
 }
 
-/* A touch screen has no pointer to follow, and leaves the cell last tapped
-   hovered until something else is tapped: zooming or scrolling away strands a
-   lit cell behind. Only a real pointer is offered the highlight. */
-@media (hover: hover) {
-  .cell:hover .hex {
-    fill: var(--cell-hover);
-  }
-}
-
+/* One mark, and two ways to put it there: the pointer is on the cell, or the
+   panel is naming it. */
 .hex-marked {
   fill: var(--cell-hover);
   stroke: var(--accent);
   stroke-width: 0.16;
+}
+
+/* A touch screen has no pointer to follow and leaves the cell last tapped
+   hovered until something else is tapped, so zooming or scrolling away would
+   strand a lit cell behind. The pointer's half of the mark is its own. */
+@media (hover: hover) {
+  .cell:hover .hex {
+    fill: var(--cell-hover);
+    stroke: var(--accent);
+    stroke-width: 0.16;
+  }
 }
 
 .cell {
@@ -317,22 +321,12 @@ body[data-corner] .board > .names .coord {
   stroke-width: 0.14;
 }
 
-/* The cell the panel names keeps the mark the pointer would have made there,
-   ringed, so that chosen reads apart from merely pointed at. That mark is the
-   cell's own stone, which is the sibling right after its hexagon, and it can
-   only be shown while the point is empty: the hexagon is what is left to mark
-   a point that has a stone on it. */
-.dual .hex-marked:has(+ .stone.hidden) {
-  fill: transparent;
-  stroke: none;
-}
-
-.dual .hex-marked + .stone.hidden {
-  display: unset;
-  fill: rgba(255, 255, 255, 0.3);
-  stroke: var(--accent);
-  stroke-width: 0.1;
-  filter: none;
+@media (hover: hover) {
+  .dual .cell:hover .hex {
+    fill: color-mix(in srgb, var(--accent) 26%, transparent);
+    stroke: var(--accent);
+    stroke-width: 0.14;
+  }
 }
 
 /* The last stone is ringed in the other colour, as a Go diagram marks it. */
@@ -419,23 +413,6 @@ body[data-corner] .board > .names .coord {
 
 .dual .band {
   stroke: rgba(24, 18, 8, 0.5);
-}
-
-/* What the pointer lights on a goban is the stone it would put down, so the
-   mark is round and the size of a stone rather than the shape of the cell.
-   It is the cell's own stone, unhidden: already there, already centred,
-   already that size. Nothing is offered on a point that is taken, which is
-   what the ghost would say anyway. */
-@media (hover: hover) {
-  .dual .cell:hover .hex {
-    fill: transparent;
-  }
-
-  .dual .cell:hover .stone.hidden {
-    display: unset;
-    fill: rgba(255, 255, 255, 0.3);
-    filter: none;
-  }
 }
 
 .dual .stone {

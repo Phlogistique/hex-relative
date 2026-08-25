@@ -48,7 +48,7 @@ worth reading as much as running.
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `naming.mjs` | the one field: a tap names a cell, a name typed in finds it, and neither rubs the other out |
 | `corner.mjs` | the cell's names standing in the empty corner of the drawing: they cover nothing, they go back under the board where there is no room, and it is still the one field out there |
-| `hover.mjs` | what the pointer lights on each board, and that a finger lights nothing |
+| `hover.mjs` | the pointer and a tap leave the same mark, and a finger is offered only the second |
 | `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen, the answer beside the board on a screen wider than it is tall |
 | `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z, its longest name fitting the panel sideways |
@@ -306,29 +306,18 @@ at one still names exactly one cell. `fill: transparent` rather than
 `fill: none`: `none` stops taking clicks, and the board would go dead without
 looking any different, which is what `checks/goban.mjs` ends by proving.
 
-**Nothing lights up under a finger.** A touch screen has no pointer, but it
-has `:hover`: it hands it to the cell last tapped and keeps it there, so a
-zoom or a scroll away leaves a cell lit under nothing at all. Every highlight
-on the board sits inside `@media (hover: hover)`. What a real pointer is
-offered differs by drawing — the hexagons light the cell, which is a hexagon;
-the goban lights the stone that would be played there, round and stone-sized,
-and that is the cell's own stone element unhidden rather than a second circle
-on every cell. `checks/hover.mjs` holds a cell hovered on a screen that reports
-itself touch and insists it stays dark; `hasTouch` is what makes Chromium
-report `hover: none`, and without it the check passes blind.
+**The board makes one mark, and a finger is not offered half of it.** The mark
+says the pointer is on this cell, or the panel is naming it; those are the same
+mark, in one rule per drawing. A tap leaves it, whatever else the tap did to
+the position, so the mark and the name in the panel are the same answer.
 
-Taking the highlight away from touch takes away the only thing the board said
-about a tap, so the mark takes it over: the cell the panel is naming keeps the
-mark the pointer would have made there, ringed in the accent so that chosen
-reads apart from merely pointed at. A tap marks whatever else it did to the
-position, the mark and the name in the panel being the same answer.
-
-That is why the hexagon is still marked at all. A point with a stone on it has
-no room for the round mark — the stone is drawn over it — so there the hexagon
-carries the accent, as it does on the hexagons themselves. The stylesheet
-tells the two apart by the stone the mark would use being the sibling right
-after the hexagon: `.hex-marked:has(+ .stone.hidden)` is a marked point with
-nothing on it.
+The pointer's half sits inside `@media (hover: hover)`. A touch screen has no
+pointer, but it has `:hover`: it hands it to the cell last tapped and keeps it
+there, so a zoom or a scroll away used to leave a cell lit under nothing at
+all. `checks/hover.mjs` holds a cell hovered on a screen that reports itself
+touch and insists it stays dark, then taps and insists the mark is there;
+`hasTouch` is what makes Chromium report `hover: none`, and without it the
+check passes blind.
 
 **Nothing on a go-style board is red or blue, and that is a harder rule than
 it sounds.** On the board itself it is easy — red plays black, blue plays
