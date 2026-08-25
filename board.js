@@ -422,6 +422,23 @@ export class HexBoard {
     const edgeLayer = group(svg, "edges");
     const labelLayer = group(svg, "labels");
 
+    // The labels go in first, alone, and the board is drawn around them after.
+    // Asking a label how wide it is lays out the whole drawing with it — ten
+    // thousand elements on the largest board — for an answer thrown away as
+    // soon as the labels are placed. Against empty layers it lays out the
+    // labels. They land where they always did, the viewBox they are measured
+    // at being the same provisional one either way.
+    const labels = this.buildLabels(labelLayer);
+    this.svg = svg;
+    this.container.replaceChildren(svg);
+    setViewBox(svg, this.layoutLabels(labels, board));
+    // Where a move number's ink sits, asked here for the same reason. The font
+    // is the stylesheet's and the same on every board, so one throwaway label
+    // answers for all of them and `paint` need not ask with the cells in.
+    const probe = text(labelLayer, "", "stone-label");
+    this.numberInk = inkHalf(probe);
+    probe.remove();
+
     if (dual) {
       if (this.style === "goban") this.buildWood(groundLayer);
       this.buildGrid(groundLayer);
@@ -437,13 +454,6 @@ export class HexBoard {
     }
     if (dual) this.buildBands(edgeLayer);
     else this.buildEdges(edgeLayer);
-    const labels = this.buildLabels(labelLayer);
-
-    this.svg = svg;
-    // Labels can only be measured once they are being rendered, so they go in
-    // unplaced, get positioned, and only then does the viewBox close in.
-    this.container.replaceChildren(svg);
-    setViewBox(svg, this.layoutLabels(labels, board));
     this.paint();
   }
 
@@ -853,9 +863,9 @@ export class HexBoard {
   /** Repaint stones, move numbers and highlights without rebuilding the SVG. */
   paint() {
     for (const { hex, stone, label } of this.cells.values()) {
-      stone.setAttribute("class", "stone hidden");
-      label.textContent = "";
-      hex.setAttribute("class", "hex");
+      attr(stone, "class", "stone hidden");
+      if (label.textContent) label.textContent = "";
+      attr(hex, "class", "hex");
     }
 
     const { stones, last } = this.position();
@@ -867,7 +877,7 @@ export class HexBoard {
         `stone stone-${stone.color}${at === last ? " stone-last" : ""}`,
       );
       if (this.showNumbers) {
-        cell.label.setAttribute("y", inkHalf(cell.label));
+        cell.label.setAttribute("y", this.numberInk);
         cell.label.textContent = String(stone.number);
         cell.label.setAttribute("class", `stone-label on-${stone.color}`);
       }
@@ -961,6 +971,12 @@ function apply(l, at, bounds) {
   bounds.minY = Math.min(bounds.minY, at.box[1]);
   bounds.maxX = Math.max(bounds.maxX, at.box[2]);
   bounds.maxY = Math.max(bounds.maxY, at.box[3]);
+}
+
+/** Write an attribute only where it would change: clearing the board otherwise
+    writes the same class back to a few thousand cells that already have it. */
+function attr(node, name, value) {
+  if (node.getAttribute(name) !== value) node.setAttribute(name, value);
 }
 
 /** Half the height of the digits' ink, in the font this label is drawn in. */
