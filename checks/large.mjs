@@ -114,15 +114,13 @@ await check("The largest board", async ({ open }) => {
     isMobile: true,
     hasTouch: true,
   });
-  await sideways.fill("#goto", "10'-26'");
-  await sideways.press("#goto", "Enter");
+  await sideways.fill("#coord", "10'-26'");
+  await sideways.press("#coord", "Enter");
   await sideways.waitForTimeout(150);
   const turned = await sideways.evaluate(measure);
-  const answer = await sideways.evaluate(() =>
-    document
-      .querySelector(".readout-main")
-      .textContent.replace(/\s+/g, " ")
-      .trim(),
+  const answer = await sideways.evaluate(
+    () =>
+      `${document.querySelector("#coord").value} ${document.querySelector("#standard").textContent}`,
   );
   console.log(
     `  ${pad("sideways", 10)}${turned.width}x${turned.height} ${turned.orientation}   ` +

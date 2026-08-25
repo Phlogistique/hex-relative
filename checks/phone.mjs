@@ -143,10 +143,9 @@ await check("On a phone", async ({ open }) => {
     .nth(3 * 13 + 3)
     .tap();
   const named = await page.evaluate(() => ({
-    readout: document
-      .querySelector(".readout-main")
-      ?.textContent.replace(/\s+/g, " ")
-      .trim(),
+    readout: `${document.querySelector("#coord").value} ${
+      document.querySelector("#standard").textContent
+    }`,
     hash: location.hash,
   }));
   console.log(

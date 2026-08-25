@@ -25,10 +25,11 @@ const ui = {
   clear: el("clear"),
   example: el("example"),
   share: el("share"),
-  readout: el("readout"),
-  goto: el("goto"),
-  gotoForm: el("goto-form"),
-  gotoError: el("goto-error"),
+  coord: el("coord"),
+  standard: el("standard"),
+  variants: el("variants"),
+  cellForm: el("cell-form"),
+  cellError: el("coord-error"),
   moves: el("moves"),
   status: el("status"),
 };
@@ -90,34 +91,28 @@ function refresh() {
   fitBoard();
 }
 
+/**
+ * Name the cell. The field the name is printed in is also where a coordinate
+ * is typed to be shown one, so it is left alone while it holds the caret: the
+ * pointer crossing the board would otherwise rub out what is being typed.
+ */
 function showReadout(cell) {
-  if (!cell || cell.col >= board.size || cell.row >= board.size) {
-    // Holding the answer's own line, rather than a shorter one: on a phone the
-    // board is given the room this panel does not need, and a panel that grows
-    // when tapped would take it back from under the board it was tapped on.
-    ui.readout.innerHTML = `<div class="readout-main">
-      <span class="coord placeholder">—</span>
-    </div>`;
-    return;
-  }
-  const { col, row } = cell;
+  const known = cell && cell.col < board.size && cell.row < board.size;
   const size = board.size;
-  const canonical = relative(col, row, size);
-
-  // The four names go in a row; what each one counts from is a tooltip.
-  ui.readout.innerHTML = `
-    <div class="readout-main">
-      <span class="coord">${canonical}</span>
-      <span class="standard">${standard(col, row)}</span>
-    </div>
-    <ul class="variants">
-      ${variants(col, row, size)
+  const canonical = known ? relative(cell.col, cell.row, size) : "";
+  if (document.activeElement !== ui.coord) ui.coord.value = canonical;
+  ui.standard.textContent = known ? standard(cell.col, cell.row) : "";
+  // The cell's other three names, this one being printed above them already.
+  // What each counts from is a tooltip.
+  ui.variants.innerHTML = known
+    ? variants(cell.col, cell.row, size)
+        .filter((v) => v.text !== canonical)
         .map(
-          (v) => `<li class="${v.text === canonical ? "is-canonical" : ""}"
-            title="${v.y} from ${v.yEdge}, ${v.x} from ${v.xEdge}">${v.text}</li>`,
+          (v) =>
+            `<li title="${v.y} from ${v.yEdge}, ${v.x} from ${v.xEdge}">${v.text}</li>`,
         )
-        .join("")}
-    </ul>`;
+        .join("")
+    : "";
 }
 
 /** The stone list doubles as the history: every row is a position to jump to. */
@@ -301,12 +296,33 @@ function roomForBoard(svg) {
   return room > 0 ? room : null;
 }
 
+/**
+ * How wide the name field stands: the longest name this board can print, in
+ * digit widths. Wide enough never to clip and no wider, and the same width
+ * whatever is in it, so the standard name beside it keeps still while the
+ * pointer crosses the board.
+ *
+ * Measured off the notation rather than worked out from the size, since which
+ * cell has the longest name is not obvious — on 53x53 it is 10'-26', which is
+ * neither the centre nor a corner.
+ */
+function fitField(size) {
+  let widest = 3; // the placeholder, on a board too small to need more
+  for (let col = 0; col < size; col++) {
+    for (let row = 0; row < size; row++) {
+      widest = Math.max(widest, relative(col, row, size).length);
+    }
+  }
+  ui.coord.style.width = `${widest}ch`;
+}
+
 function setSize(size) {
   const clean = Math.max(
     2,
     Math.min(MAX_SIZE, Math.round(size) || DEFAULT_SIZE),
   );
   ui.size.value = clean;
+  fitField(clean);
   board.setSize(clean);
   lastTouched = null;
   note = "";
@@ -335,6 +351,7 @@ function readHash(hash) {
 function load(state) {
   ui.size.value = state.size;
   ui.numbers.checked = state.numbers;
+  fitField(state.size);
   board.setSize(state.size);
   board.setShowNumbers(state.numbers);
   board.setMoves(state.moves, state.cursor);
@@ -403,18 +420,27 @@ ui.share.addEventListener("click", async () => {
   setTimeout(() => (ui.share.textContent = "Copy link"), 1800);
 });
 
-ui.gotoForm.addEventListener("submit", (event) => {
+ui.cellForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const cell = parse(ui.goto.value, board.size);
+  const cell = parse(ui.coord.value, board.size);
   if (!cell) {
-    ui.gotoError.textContent = `Not a coordinate on a ${board.size}x${board.size} board.`;
+    ui.cellError.textContent = `Not a coordinate on a ${board.size}x${board.size} board.`;
     board.mark(null);
     return;
   }
-  ui.gotoError.textContent = "";
+  ui.cellError.textContent = "";
   board.mark(cell);
   lastTouched = cell;
+  // On a phone the keyboard is standing on the board that is about to be
+  // pointed at, and the answer is behind it.
+  ui.coord.blur();
   showReadout(cell);
+});
+
+// Whatever was left in the field, the cell the board is showing is the answer.
+ui.coord.addEventListener("blur", () => {
+  ui.cellError.textContent = "";
+  showReadout(lastTouched);
 });
 
 const KEYS = {

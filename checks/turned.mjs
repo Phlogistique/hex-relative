@@ -252,7 +252,7 @@ await check("The board turned upright", async ({ open }) => {
     .nth(lowest.row * size + lowest.col)
     .tap();
   await page.waitForTimeout(60);
-  const answer = await page.textContent(".readout-main .coord");
+  const answer = await page.inputValue("#coord");
   console.log(`  a tap on the lowest cell names ${answer}`);
   if (answer !== "11'") throw new Error(`the lowest cell named ${answer}`);
   await page.close();

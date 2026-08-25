@@ -143,29 +143,29 @@
       <aside class="side">
         <section class="card">
           <h2
-            title="Every cell has four names, one per pair of edges. The highlighted one is measured from the two nearest edges — a default, not a rule: on 13x13, b8 is 62 in isolation but reads better as 8'2 after 2'3 and 5'2, because that name does not change with board size."
+            title="Every cell has four names, one per pair of edges. The one printed large is measured from the two nearest edges — a default, not a rule: on 13x13, b8 is 62 in isolation but reads better as 8'2 after 2'3 and 5'2, because that name does not change with board size."
           >
             Cell
           </h2>
-          <div id="readout"></div>
-        </section>
-
-        <section class="card">
-          <h2
-            title="Accepts a relative coordinate — 5'2, 8'-2, 10-4 — or a standard one such as d5"
-          >
-            Find
-          </h2>
-          <form id="goto-form" autocomplete="off">
-            <input
-              id="goto"
-              type="text"
-              placeholder="5'2, 8'-2, 10-4, d5"
-              aria-label="Coordinate"
-            />
-            <button type="submit">Show</button>
+          <form id="cell-form" autocomplete="off">
+            <div class="readout-main">
+              <input
+                id="coord"
+                class="coord"
+                type="text"
+                autocapitalize="off"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="5'2"
+                aria-label="Coordinate"
+                title="What a tap on the board names, and where to type a coordinate to be shown one: 5'2, 8'-2, 10-4, or a standard coordinate such as d5"
+              />
+              <span id="standard" class="standard"></span>
+            </div>
           </form>
-          <p id="goto-error" class="error"></p>
+          <ul id="variants" class="variants"></ul>
+          <p id="coord-error" class="error"></p>
         </section>
 
         <section class="card">
