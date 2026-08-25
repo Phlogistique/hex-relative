@@ -475,17 +475,27 @@ await check(
       });
       await page.close();
 
+      // Not to the last bit. How wide a label comes out is read back from the
+      // text as rendered, and that answer moves by a few thousandths of a cell
+      // with the size the drawing happens to be laid out at, the glyphs landing
+      // on the pixel grid differently. Two drawings of the same board therefore
+      // never agree exactly, and asking them to made this check fail about one
+      // run in eight. What it is here to catch is a hidden drawing that
+      // measured nothing, which comes out a very stout board and is wrong by
+      // tens of percent, so a thousandth is tight enough to mean something and
+      // loose enough to be true.
       for (const orientation of ["wide", "tall"]) {
         const one = found.drawn[orientation];
         const other = found.asked[orientation];
         const off = Math.max(
-          Math.abs(one.width - other.width),
-          Math.abs(one.height - other.height),
+          Math.abs(one.width - other.width) / one.width,
+          Math.abs(one.height - other.height) / one.height,
         );
-        if (off > 1e-6) {
+        if (off > 1e-3) {
           throw new Error(
             `${style} ${orientation}: drawn ${one.width}x${one.height}, ` +
-              `answered ${other.width}x${other.height}`,
+              `answered ${other.width}x${other.height}, ` +
+              `off by ${(off * 100).toFixed(3)}%`,
           );
         }
       }
