@@ -266,6 +266,19 @@ on every cell. `checks/hover.mjs` holds a cell hovered on a screen that reports
 itself touch and insists it stays dark; `hasTouch` is what makes Chromium
 report `hover: none`, and without it the check passes blind.
 
+Taking the highlight away from touch takes away the only thing the board said
+about a tap, so the mark takes it over: the cell the panel is naming keeps the
+mark the pointer would have made there, ringed in the accent so that chosen
+reads apart from merely pointed at. A tap marks whatever else it did to the
+position, the mark and the name in the panel being the same answer.
+
+That is why the hexagon is still marked at all. A point with a stone on it has
+no room for the round mark — the stone is drawn over it — so there the hexagon
+carries the accent, as it does on the hexagons themselves. The stylesheet
+tells the two apart by the stone the mark would use being the sibling right
+after the hexagon: `.hex-marked:has(+ .stone.hidden)` is a marked point with
+nothing on it.
+
 **Nothing on a go-style board is red or blue, and that is a harder rule than
 it sounds.** On the board itself it is easy — red plays black, blue plays
 white, edges included, so which pair of sides a colour is joining can be read

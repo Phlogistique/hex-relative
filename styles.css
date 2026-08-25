@@ -277,6 +277,24 @@ main {
   stroke-width: 0.14;
 }
 
+/* The cell the panel names keeps the mark the pointer would have made there,
+   ringed, so that chosen reads apart from merely pointed at. That mark is the
+   cell's own stone, which is the sibling right after its hexagon, and it can
+   only be shown while the point is empty: the hexagon is what is left to mark
+   a point that has a stone on it. */
+.dual .hex-marked:has(+ .stone.hidden) {
+  fill: transparent;
+  stroke: none;
+}
+
+.dual .hex-marked + .stone.hidden {
+  display: unset;
+  fill: rgba(255, 255, 255, 0.3);
+  stroke: var(--accent);
+  stroke-width: 0.1;
+  filter: none;
+}
+
 /* The last stone is ringed in the other colour, as a Go diagram marks it. */
 .dual .stone-last.stone-red {
   stroke: #f4f1e8;
