@@ -139,6 +139,46 @@ main {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 0.5rem;
+  /* the corner the answer stands in, where the drawing has room for it */
+  position: relative;
+}
+
+/* Everything the page has to say about a cell, in one block: the name, the
+   standard name beside it, and the cell's other three names under them. It is
+   as wide as its own widest line so that the corner it may stand in can be
+   measured against it, and it carries no frame of its own — in the corner it
+   is part of the drawing, and under the board it is the only thing there. */
+.names {
+  width: max-content;
+  max-width: 100%;
+  font-size: 1rem;
+  margin: 0.6rem 0 0;
+}
+
+/* Under the drawing, inside the board's own card, where it stands when the
+   corner has no room for it. */
+.board > .names {
+  margin: 0.4rem 0.15rem 0.15rem;
+}
+
+/* And in the drawing's corner, at the offsets app.js measures. */
+body[data-corner] .board > .names {
+  position: absolute;
+  margin: 0;
+  text-align: right;
+}
+
+body[data-corner] .board > .names .variants,
+body[data-corner] .board > .names .readout-main {
+  justify-content: flex-end;
+}
+
+/* The field is as wide as the board's longest name, so a short one printed
+   from the left leaves a gap between it and the standard name beside it.
+   Printed from the right it sits against it, and nothing moves as the pointer
+   crosses the board: the name grows leftwards inside a box that stays put. */
+body[data-corner] .board > .names .coord {
+  text-align: right;
 }
 
 .hex-board {
@@ -470,6 +510,8 @@ text {
   color: var(--muted);
 }
 
+/* The name and the standard name beside it. Everything in the block is sized
+   in em, so the whole of it follows the one size app.js prints it at. */
 .readout-main {
   display: flex;
   align-items: baseline;
@@ -480,7 +522,7 @@ text {
    the same field: the page has one place where a cell is named, and it reads
    as an answer until it is pointed at. */
 .coord {
-  font-size: 2.1rem;
+  font-size: 2.1em;
   font-weight: 700;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
@@ -510,14 +552,14 @@ text {
 
 .standard {
   color: var(--muted);
-  font-size: 1rem;
+  font-size: 1em;
 }
 
 .variants {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
-  margin: 0.7rem 0 0;
+  gap: 0.3em;
+  margin: 0.5em 0 0;
   padding: 0;
   list-style: none;
 }
@@ -527,10 +569,10 @@ text {
 }
 
 .variants li {
-  padding: 0.1rem 0.42rem;
+  padding: 0.1em 0.42em;
   border: 1px solid var(--line);
   border-radius: 5px;
-  font-size: 0.85rem;
+  font-size: 0.85em;
   font-variant-numeric: tabular-nums;
   cursor: help;
 }
@@ -551,9 +593,9 @@ text {
 }
 
 .error {
-  margin: 0.45rem 0 0;
+  margin: 0.45em 0 0;
   color: var(--red);
-  font-size: 0.82rem;
+  font-size: 0.82em;
 }
 
 /* No blank line held for a message that is only there after a typing slip. */
@@ -736,7 +778,7 @@ body[data-dual] .status-blue {
   }
 
   .coord {
-    font-size: 1.7rem;
+    font-size: 1.7em;
   }
 
   /* Do not reserve a blank line for a win message that is usually absent. */
@@ -781,6 +823,12 @@ body[data-dual] .status-blue {
     grid-template-columns: minmax(0, 1fr) minmax(min-content, min(9rem, 24%));
   }
 
+  /* Unless the answer is standing in the board's own corner, when nothing is
+     beside the board and the board may have the width as well. */
+  body[data-corner] main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   /* The answer keeps that name as narrow as it can: on the largest boards the
      standard name drops under the relative one rather than beside it. */
   .readout-main {
@@ -807,7 +855,7 @@ body[data-dual] .status-blue {
   }
 
   .coord {
-    font-size: 1.7rem;
+    font-size: 1.7em;
   }
 
   .status:empty {

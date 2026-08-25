@@ -47,6 +47,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `naming.mjs` | the one field: a tap names a cell, a name typed in finds it, and neither rubs the other out |
+| `corner.mjs` | the cell's names standing in the empty corner of the drawing: they cover nothing, they go back under the board where there is no room, and it is still the one field out there |
 | `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen, the answer beside the board on a screen wider than it is tall |
 | `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z, its longest name fitting the panel sideways |
@@ -172,6 +173,56 @@ measurement settles it; the stylesheet is asked whether the page is one column
 or two rather than the breakpoint being written down in two places. Beside the
 board rather than under it the panel keeps its own place, there is nothing to
 measure, and the cap is the stylesheet's `78vh`.
+
+**Everything the page says about a cell stands in the corner of the drawing.**
+A rhombus leaves two corners of its box with nothing in them, and what there is
+to say is four short names, so the whole block goes in the top right one: the
+name, the standard name beside it, the other three under them, and no frame
+around any of it. Nothing stands under the board then, which is why a phone
+held sideways gets the width the panel used to take — the cell went from 20px
+to 26px on a 667 by 375 screen — and why the page is 470px shorter held
+upright.
+
+That corner is bigger than it looks and much bigger than a bounding box says,
+which is worth stating because believing the box cost this idea a whole round.
+**The coloured edges are one polygon per flank, running diagonally, so the box
+of a single band covers the entire corner**: measured that way, a 13x13 board
+leaves a shallow strip 250 by 42px and 53x53 leaves 17px, which reads as no
+room at all. Measured by the outline itself, the same 53x53 board on a phone
+leaves the corner 190 by 78px, which is the whole block at the size the page
+prints it. `cornerRoom()` takes the labels by their boxes, which are honest
+lines of text, and every leaning polygon — the four bands, and the wood the
+goban is drawn on — by its own points clipped to the band of height being asked
+about; the hexagons and the stones need not be asked, sitting inside an outline
+that has been. `corner.mjs` asks the browser instead — it hit tests every few
+pixels under the block and fails if anything of the board's is found there, a
+hexagon under it being a cell that could not be tapped.
+
+The corner is measured in the layout standing there would give, not the one the
+block is in. Putting it out there is what leaves the board the width a panel
+beside it was taking, and a wider board has a wider corner, so asked the other
+way round a board that had once fallen back could never climb out again.
+
+`placeAnswer()` prints the block at the largest of three sizes that fits, and
+puts it back under the drawing where none does, which on the screens worth
+drawing takes a 53x53 board on a 480 by 280 screen. It stays inside the board's
+own card either way, so that fallback reads as the drawing's caption rather
+than as something adrift under it, and it stands `CLEAR` of the drawing's own
+corner rather than of the card's: on a board bound by its height the card runs
+well past the ink on both sides, and anchoring to the card would float the
+block away from the board on exactly the screens with room to spare.
+
+That and the fitting settle each other: what stands under the board says how
+much room the board has, and how big the board comes out says whether its
+corner will hold the answer. `fitBoard()` runs the two to a standstill, which
+takes two passes, or three if the board changed the way round it lies and its
+corner changed shape with it.
+
+It also moved where the board is worth turning. While the answer stood under
+the board, a narrow screen had to be tall before the upright drawing paid;
+now the board has the whole screen whatever the screen's shape, so a box on a
+narrow screen is always taller than it is wide and the board always stands up
+there. `turned.mjs` had to go to a wide screen to find a board lying down.
 
 On a phone held sideways, under the board is the wrong place for the answer
 altogether. That screen has almost no height, and a panel laid out for a

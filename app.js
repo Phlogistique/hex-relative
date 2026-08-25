@@ -29,6 +29,7 @@ const ui = {
   standard: el("standard"),
   variants: el("variants"),
   cellForm: el("cell-form"),
+  names: el("names"),
   cellError: el("coord-error"),
   moves: el("moves"),
   status: el("status"),
@@ -208,6 +209,22 @@ function setStyle(mode) {
 // --- how much room the board has ------------------------------------------
 
 /**
+ * Fit the board, and stand the answer where the board it drew leaves room.
+ *
+ * The two settle each other: what has to stay under the board says how much
+ * room the board has, and how big the board comes out says whether its corner
+ * will hold the answer. So it is run to a standstill rather than in one go —
+ * two passes in practice, the third only if a board that changed the way round
+ * it lies changed its corner with it.
+ */
+function fitBoard() {
+  for (let pass = 0; pass < 3; pass++) {
+    fitOnce();
+    if (!placeAnswer()) return;
+  }
+}
+
+/**
  * Which way round to draw the board, and how tall it may be.
  *
  * The two drawings are the same board in the same box, lying down and stood on
@@ -223,7 +240,7 @@ function setStyle(mode) {
  * the panel rather than under it there is nothing to measure and the cap is the
  * stylesheet's own.
  */
-function fitBoard() {
+function fitOnce() {
   const svg = ui.board.querySelector("svg");
   if (!svg) return;
   ui.board.style.removeProperty("--board-room");
@@ -232,6 +249,140 @@ function fitBoard() {
   const cap = maxHeight(svg); // the stylesheet's own, with that out of the way
   board.fitInto(width, room ?? cap);
   if (room !== null) ui.board.style.setProperty("--board-room", `${room}px`);
+}
+
+/**
+ * Where the cell's names stand: the empty corner of the drawing, or under the
+ * board.
+ *
+ * A rhombus leaves two corners of its box with nothing in them, and what the
+ * page has to say about a cell is four short names, so where there is room it
+ * all goes in the top right one and nothing stands under the board at all.
+ * Where there is not — a small screen and a large board — it goes back
+ * underneath.
+ *
+ * The sizes are the size the page prints it at, three quarters of that, and
+ * five eighths.
+ */
+const ANSWER_SIZES = [1, 0.78, 0.62];
+
+// Daylight between the block and the drawing it stands in the corner of.
+const CLEAR = 8;
+
+/**
+ * The drawing's own rectangle inside the box it was given. It keeps its shape
+ * and centres itself in whatever is left, so on a board bound by its height
+ * the box runs well past the ink on both sides — and the corner the block
+ * stands in is the drawing's, not the box's, or it floats away from the board
+ * on exactly the screens that have room to spare.
+ */
+function drawnBox() {
+  const svg = ui.board.querySelector("svg");
+  const box = svg.getBoundingClientRect();
+  const view = svg.viewBox.baseVal;
+  const scale = Math.min(box.width / view.width, box.height / view.height);
+  const slackX = (box.width - view.width * scale) / 2;
+  const slackY = (box.height - view.height * scale) / 2;
+  return {
+    top: box.top + slackY,
+    right: box.right - slackX,
+    width: box.width - 2 * slackX,
+  };
+}
+
+/**
+ * How far the drawing's ink keeps clear of the right edge of its box, down to
+ * this depth: how wide a block may stand in that corner.
+ *
+ * Bounding boxes will not answer this, and believing them cost this page the
+ * whole idea once. The coloured edges are one polygon per flank, running
+ * diagonally, so the box of a single band covers the entire corner and reports
+ * no room where there is most of it. They are measured by their own outline
+ * instead. Nothing else needs it: the labels are lines of text, the wood is a
+ * box of a polygon either way round, and the hexagons and the stones sit
+ * inside the outline that has already been asked.
+ */
+function cornerRoom(depth) {
+  const svg = ui.board.querySelector("svg");
+  const drawn = drawnBox();
+  const bottom = drawn.top + depth;
+  let reach = drawn.right - drawn.width;
+  for (const text of svg.querySelectorAll(".labels text")) {
+    const ink = text.getBoundingClientRect();
+    if (ink.top < bottom) reach = Math.max(reach, ink.right);
+  }
+  // The wood the goban is drawn on leans the same way the bands do, so it is
+  // taken by its outline too.
+  for (const outline of svg.querySelectorAll(
+    "polygon.band, polygon.border, polygon.wood",
+  )) {
+    reach = Math.max(reach, rightmostIn(outline, drawn.top, bottom));
+  }
+  return drawn.right - reach;
+}
+
+/** How far right a polygon's outline reaches between two heights on screen. */
+function rightmostIn(polygon, top, bottom) {
+  const matrix = polygon.getScreenCTM();
+  const points = [...polygon.points].map((point) =>
+    point.matrixTransform(matrix),
+  );
+  let reach = -Infinity;
+  for (const [index, from] of points.entries()) {
+    const to = points[(index + 1) % points.length];
+    if (from.y >= top && from.y <= bottom) reach = Math.max(reach, from.x);
+    // An edge that leaves the band counts where it crosses out of it.
+    for (const y of [top, bottom]) {
+      if ((from.y - y) * (to.y - y) < 0) {
+        reach = Math.max(
+          reach,
+          from.x + ((to.x - from.x) * (y - from.y)) / (to.y - from.y),
+        );
+      }
+    }
+  }
+  return reach;
+}
+
+/**
+ * Stand the cell's names in the corner if they fit there, and under the
+ * drawing if they do not. Says whether that answer changed.
+ *
+ * They stay in the board's own card either way, so the fallback reads as the
+ * drawing's own caption rather than as something adrift under it.
+ */
+function placeAnswer() {
+  if (!ui.board.querySelector("svg")) return false;
+  // Not while the field holds the caret: moving it in the DOM drops the focus,
+  // and on a phone the keyboard with it, in the middle of typing a coordinate.
+  if (document.activeElement === ui.coord) return false;
+  const was = document.body.hasAttribute("data-corner");
+  // Asked in the layout the corner would give, not the one it is in: standing
+  // the block out there is what leaves the board the width the panel beside it
+  // was taking, and a wider board has a wider corner. Asked the other way
+  // round, a board that had once fallen back could never climb out again.
+  document.body.toggleAttribute("data-corner", true);
+  ui.names.style.cssText = "";
+  ui.board.appendChild(ui.names);
+  const block = ui.names.getBoundingClientRect();
+  // Room for the block and the daylight round it, both ways.
+  const scale = ANSWER_SIZES.find(
+    (size) =>
+      cornerRoom(block.height * size + CLEAR) >= block.width * size + CLEAR,
+  );
+  document.body.toggleAttribute("data-corner", Boolean(scale));
+  if (scale) {
+    ui.names.style.fontSize = `${scale}rem`;
+    // Set against the drawing's own corner. A box is positioned against the
+    // card's padding box, which is the border away from where the card is
+    // measured from.
+    const card = ui.board.getBoundingClientRect();
+    const border = ui.board.clientTop;
+    const drawn = drawnBox();
+    ui.names.style.top = `${drawn.top - card.top - border + CLEAR}px`;
+    ui.names.style.right = `${card.right - drawn.right - border + CLEAR}px`;
+  }
+  return Boolean(scale) !== was;
 }
 
 /** The stylesheet's cap on the board, `none` counting as no cap at all. */
@@ -285,11 +436,15 @@ function roomForBoard(svg) {
   // The answer itself, rather than the whole panel: the other names of the
   // cell sit under it and can wait for a scroll. It is also the one part whose
   // height does not depend on what has been tapped, so the board keeps still.
-  const answer = document.querySelector(".side .card .readout-main");
   const columns = getComputedStyle(main).gridTemplateColumns.split(" ").length;
-  if (columns > 1 || !answer) return null;
+  if (columns > 1) return null;
   const box = svg.getBoundingClientRect();
-  const below = answer.getBoundingClientRect().bottom - box.bottom;
+  // Standing in the board's own corner it is above the foot of the board and
+  // takes nothing from it, and the board may have the whole screen.
+  const below = Math.max(
+    0,
+    ui.cellForm.getBoundingClientRect().bottom - box.bottom,
+  );
   const room = steadyHeight() - below;
   // A screen with no room for the answer at all leaves nothing to measure
   // against, and a cap of nothing would draw a board of nothing.
@@ -314,6 +469,12 @@ function fitField(size) {
     }
   }
   ui.coord.style.width = `${widest}ch`;
+  // The standard name beside it is held to its own longest, which is the far
+  // corner: the last column is the longest word and the last row the longest
+  // number. Both held, the line is the same width whatever is in it, so it
+  // does not shuffle about under a moving pointer, and the corner it may be
+  // asked to stand in is measured against the widest it will ever be.
+  ui.standard.style.minWidth = `${standard(size - 1, size - 1).length}ch`;
 }
 
 function setSize(size) {
