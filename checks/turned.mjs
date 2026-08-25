@@ -48,8 +48,12 @@ const HALF_WIDTH = Math.sqrt(3) / 2;
 
 // Tall enough that turning the board pays, which is what makes it happen.
 const UPRIGHT = { width: 420, height: 1000 };
-// The same width, too short for the turn to be worth anything.
-const FLAT = { width: 420, height: 420 };
+// A box that leans the other way, where the board lies down. It has to be a
+// wide screen rather than a short one of the same width: the answer stands in
+// the board's own corner and takes nothing from under it, so a narrow screen
+// leaves a box taller than it is wide however short it is, and the board is
+// right to turn there.
+const FLAT = { width: 900, height: 400 };
 
 const phone = { isMobile: true, hasTouch: true };
 
@@ -76,6 +80,7 @@ function drawing() {
     cells,
     orientation: svg.dataset.orientation,
     view: { width: view.width, height: view.height },
+    box: { width: box.width, height: box.height },
     // What the drawing came out at: it keeps its shape inside whatever box is
     // left, so the smaller of the two is the one that binds.
     scale: Math.min(box.width / view.width, box.height / view.height),
@@ -172,7 +177,7 @@ await check("The board turned upright", async ({ open }) => {
     viewport: UPRIGHT,
     ...phone,
   });
-  const { size, cells, orientation, view, scale, hex } =
+  const { size, cells, orientation, view, scale, hex, box } =
     await page.evaluate(drawing);
   const last = size - 1;
 
@@ -257,18 +262,29 @@ await check("The board turned upright", async ({ open }) => {
   if (answer !== "11'") throw new Error(`the lowest cell named ${answer}`);
   await page.close();
 
+  // What the turn is worth is what the same box would have given the board
+  // lying down, so the lying drawing is fetched from a screen that draws it and
+  // scaled into the upright screen's own box.
   const flat = await open("#13n,d10j9d5j4c2b5b8", { viewport: FLAT, ...phone });
   const lying = await flat.evaluate(drawing);
-  const bigger = scale / lying.scale - 1;
+  await flat.close();
+  const lyingHere = Math.min(
+    box.width / lying.view.width,
+    box.height / lying.view.height,
+  );
+  const bigger = scale / lyingHere - 1;
   console.log(
-    `  on ${UPRIGHT.width}px of screen it is drawn at ${scale.toFixed(1)}px to ` +
-      `the unit against ${lying.scale.toFixed(1)} lying down, ` +
+    `  on ${UPRIGHT.width}x${UPRIGHT.height} it is drawn at ${scale.toFixed(1)}px ` +
+      `to the unit against ${lyingHere.toFixed(1)} lying down in the same box, ` +
       `${(bigger * 100).toFixed(0)}% bigger: a hexagon ${hex.width.toFixed(0)} ` +
-      `by ${hex.height.toFixed(0)}px on its side, against ` +
-      `${lying.hex.width.toFixed(0)} by ${lying.hex.height.toFixed(0)}`,
+      `by ${hex.height.toFixed(0)}px on its side`,
+  );
+  console.log(
+    `  and on ${FLAT.width}x${FLAT.height}, a box that leans the other way, ` +
+      `it lies down at ${lying.scale.toFixed(1)}px to the unit`,
   );
   if (lying.orientation !== "wide") {
-    throw new Error("the short screen turned the board as well");
+    throw new Error("a box wider than it is tall turned the board");
   }
   if (bigger <= 0.1) {
     throw new Error(`turning the board gained ${(bigger * 100).toFixed(0)}%`);
@@ -442,15 +458,19 @@ await check(
         host.remove();
 
         const box = svg.getBoundingClientRect();
-        const answer = document.querySelector(".side .card .readout-main");
+        const answer = document.querySelector(".readout-main");
         return {
           drawn,
           asked,
           width: box.width,
           // All the board is not allowed to take: what has to stay on screen
           // under it. What stands above it does not count against the board,
-          // the reader being able to scroll that off the top.
-          below: answer.getBoundingClientRect().bottom - box.bottom,
+          // the reader being able to scroll that off the top, and neither does
+          // the answer when it is standing in the board's own corner.
+          below: Math.max(
+            0,
+            answer.getBoundingClientRect().bottom - box.bottom,
+          ),
         };
       });
       await page.close();
