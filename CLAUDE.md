@@ -47,6 +47,7 @@ worth reading as much as running.
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
 | `url.mjs` | hexworld's fragments open on the right board and rewrite cleanly |
 | `naming.mjs` | the one field: a tap names a cell, a name typed in finds it, and neither rubs the other out |
+| `hover.mjs` | what the pointer lights on each board, and that a finger lights nothing |
 | `phone.mjs` | three screen sizes: no sideways overflow, board and answer inside the screen, the answer beside the board on a screen wider than it is tall |
 | `turned.mjs` | the board turned upright: columns vertical, 11 bottom left, taps still land, bigger, labels still clear, a URL bar sliding away does not turn it, and turning pays before the box is square |
 | `large.mjs` | 53x53: every cell drawn, inside its box, columns lettered past z, its longest name fitting the panel sideways |
@@ -253,6 +254,17 @@ they are the click target and the Voronoi cell of the intersection, so pointing
 at one still names exactly one cell. `fill: transparent` rather than
 `fill: none`: `none` stops taking clicks, and the board would go dead without
 looking any different, which is what `checks/goban.mjs` ends by proving.
+
+**Nothing lights up under a finger.** A touch screen has no pointer, but it
+has `:hover`: it hands it to the cell last tapped and keeps it there, so a
+zoom or a scroll away leaves a cell lit under nothing at all. Every highlight
+on the board sits inside `@media (hover: hover)`. What a real pointer is
+offered differs by drawing — the hexagons light the cell, which is a hexagon;
+the goban lights the stone that would be played there, round and stone-sized,
+and that is the cell's own stone element unhidden rather than a second circle
+on every cell. `checks/hover.mjs` holds a cell hovered on a screen that reports
+itself touch and insists it stays dark; `hasTouch` is what makes Chromium
+report `hover: none`, and without it the check passes blind.
 
 **Nothing on a go-style board is red or blue, and that is a harder rule than
 it sounds.** On the board itself it is easy — red plays black, blue plays

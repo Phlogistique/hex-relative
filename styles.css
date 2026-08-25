@@ -170,8 +170,13 @@ main {
   stroke-width: 0.05;
 }
 
-.cell:hover .hex {
-  fill: var(--cell-hover);
+/* A touch screen has no pointer to follow, and leaves the cell last tapped
+   hovered until something else is tapped: zooming or scrolling away strands a
+   lit cell behind. Only a real pointer is offered the highlight. */
+@media (hover: hover) {
+  .cell:hover .hex {
+    fill: var(--cell-hover);
+  }
 }
 
 .hex-marked {
@@ -358,8 +363,21 @@ main {
   stroke: rgba(24, 18, 8, 0.5);
 }
 
-.dual .cell:hover .hex {
-  fill: rgba(255, 255, 255, 0.18);
+/* What the pointer lights on a goban is the stone it would put down, so the
+   mark is round and the size of a stone rather than the shape of the cell.
+   It is the cell's own stone, unhidden: already there, already centred,
+   already that size. Nothing is offered on a point that is taken, which is
+   what the ghost would say anyway. */
+@media (hover: hover) {
+  .dual .cell:hover .hex {
+    fill: transparent;
+  }
+
+  .dual .cell:hover .stone.hidden {
+    display: unset;
+    fill: rgba(255, 255, 255, 0.3);
+    filter: none;
+  }
 }
 
 .dual .stone {
