@@ -210,8 +210,14 @@ body[data-corner] .board > .names .coord {
   stroke-width: 0.05;
 }
 
-.cell:hover .hex {
-  fill: var(--cell-hover);
+/* A touch screen has no pointer to follow and leaves the cell last tapped
+   hovered until something else is tapped, so zooming or scrolling away would
+   strand a lit cell behind. Only a real pointer is offered it; what a tap
+   leaves is the mark. */
+@media (hover: hover) {
+  .cell:hover .hex {
+    fill: var(--cell-hover);
+  }
 }
 
 .hex-marked {
@@ -398,8 +404,10 @@ body[data-corner] .board > .names .coord {
   stroke: rgba(24, 18, 8, 0.5);
 }
 
-.dual .cell:hover .hex {
-  fill: rgba(255, 255, 255, 0.18);
+@media (hover: hover) {
+  .dual .cell:hover .hex {
+    fill: rgba(255, 255, 255, 0.18);
+  }
 }
 
 .dual .stone {

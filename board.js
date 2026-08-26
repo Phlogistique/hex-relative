@@ -374,7 +374,7 @@ export class HexBoard {
     this.paint();
   }
 
-  /** Ring a single cell, to point out a coordinate someone typed in. */
+  /** Ring a single cell: the one the panel is naming, tapped or typed in. */
   mark(cell) {
     this.marked = cell;
     this.paint();
