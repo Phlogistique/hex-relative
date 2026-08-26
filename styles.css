@@ -210,23 +210,20 @@ body[data-corner] .board > .names .coord {
   stroke-width: 0.05;
 }
 
-/* One mark, and two ways to put it there: the pointer is on the cell, or the
-   panel is naming it. */
+/* A touch screen has no pointer to follow and leaves the cell last tapped
+   hovered until something else is tapped, so zooming or scrolling away would
+   strand a lit cell behind. Only a real pointer is offered it; what a tap
+   leaves is the mark. */
+@media (hover: hover) {
+  .cell:hover .hex {
+    fill: var(--cell-hover);
+  }
+}
+
 .hex-marked {
   fill: var(--cell-hover);
   stroke: var(--accent);
   stroke-width: 0.16;
-}
-
-/* A touch screen has no pointer to follow and leaves the cell last tapped
-   hovered until something else is tapped, so zooming or scrolling away would
-   strand a lit cell behind. The pointer's half of the mark is its own. */
-@media (hover: hover) {
-  .cell:hover .hex {
-    fill: var(--cell-hover);
-    stroke: var(--accent);
-    stroke-width: 0.16;
-  }
 }
 
 .cell {
@@ -321,14 +318,6 @@ body[data-corner] .board > .names .coord {
   stroke-width: 0.14;
 }
 
-@media (hover: hover) {
-  .dual .cell:hover .hex {
-    fill: color-mix(in srgb, var(--accent) 26%, transparent);
-    stroke: var(--accent);
-    stroke-width: 0.14;
-  }
-}
-
 /* The last stone is ringed in the other colour, as a Go diagram marks it. */
 .dual .stone-last.stone-red {
   stroke: #f4f1e8;
@@ -413,6 +402,12 @@ body[data-corner] .board > .names .coord {
 
 .dual .band {
   stroke: rgba(24, 18, 8, 0.5);
+}
+
+@media (hover: hover) {
+  .dual .cell:hover .hex {
+    fill: rgba(255, 255, 255, 0.18);
+  }
 }
 
 .dual .stone {
