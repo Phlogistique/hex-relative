@@ -68,6 +68,11 @@ Tap or click to place a stone and again to take it off; shift-click or long-pres
 a touch screen, where there is no hover. Step through the game with the arrow buttons, `Home`, the
 arrow keys and `End`, or click any row of the stone list to jump to that position.
 
+On a touch screen the magnifier is on unless its box is unticked: touching the board puts it up
+close across the whole screen, about ten cells by ten, with the cell you touched under your finger.
+Slide to pan across it, and lift to play the cell under your finger and go back to the whole board.
+Lifting off the board, or putting a second finger down, plays nothing.
+
 A pass and a swap are moves like any other and keep their place in that list. The swap is the pie
 rule as hexworld records it: the board is reflected across its long diagonal and every stone changes
 colour, which makes it its own undo. A pass is also what lets a one-colour position exist at all —

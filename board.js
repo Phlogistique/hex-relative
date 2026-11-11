@@ -59,6 +59,11 @@ function turned(p) {
   return { x: p.x * HALF_WIDTH - p.y / 2, y: p.x / 2 + p.y * HALF_WIDTH };
 }
 
+/** The same twelfth of a turn back, for finding which cell a point is in. */
+function unturned(p) {
+  return { x: p.x * HALF_WIDTH + p.y / 2, y: -p.x / 2 + p.y * HALF_WIDTH };
+}
+
 // Every label keeps the same clear space from the board's outline, and the
 // second line of labels the same clear space from the first. Where they
 // actually land is worked out from the text as rendered, because the numbers
@@ -132,6 +137,31 @@ export class HexBoard {
   /** Where a cell sits, whichever way the board is turned. */
   at(col, row) {
     return this.turn(center(col, row));
+  }
+
+  /**
+   * The inverse of at(): where a point of the drawing falls, as a fractional
+   * column and row. It is linear, so it holds off the board as well as on it.
+   */
+  locate(point) {
+    const { x, y } = this.orientation === "tall" ? unturned(point) : point;
+    const row = y / 1.5;
+    return { col: x / Math.sqrt(3) - row / 2, row };
+  }
+
+  /**
+   * The cell a point of the drawing falls in, whether or not it is on the
+   * board: the hexagon whose centre is nearest, by rounding in cube
+   * coordinates, where the three axes are treated alike.
+   */
+  cellAt(point) {
+    const { col, row } = this.locate(point);
+    const s = -col - row;
+    let [q, r, t] = [col, row, s].map(Math.round);
+    const [dq, dr, dt] = [q - col, r - row, t - s].map(Math.abs);
+    if (dq > dr && dq > dt) q = -r - t;
+    else if (dr > dt) r = -q - t;
+    return { col: q, row: r };
   }
 
   /**
