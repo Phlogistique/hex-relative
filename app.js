@@ -94,6 +94,9 @@ new Magnifier(board, {
   name: (cell) =>
     `${relative(cell.col, cell.row, board.size)} · ${standard(cell.col, cell.row)}`,
   play: (cell, event) => placeStone(cell, event),
+  // How it reaches the edge of the board, on trial: ?edge=accel (the default),
+  // free, scroll or stretch.
+  way: new URLSearchParams(location.search).get("edge") ?? undefined,
 });
 
 /** Everything that has to follow a change of position or board size. */
