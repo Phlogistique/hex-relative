@@ -127,6 +127,9 @@ await check("The cell's names in the corner", async ({ open }) => {
     hasTouch: true,
   });
   await page.selectOption("#mode", "inspect");
+  // Without the magnifier, which reads a press stretched towards the nearest
+  // edge and would name a neighbour; what it does is checks/magnifier.mjs.
+  await page.setChecked("#magnify", false);
   await page
     .locator(".cells .cell")
     .nth(3 * 13 + 3)
