@@ -69,7 +69,9 @@ const onPage = (page, col, row) =>
 const closeUp = (page, x, y) =>
   page.evaluate(
     ([x, y]) => {
-      const overlay = document.querySelector(".magnifier");
+      const overlay = document.querySelector(
+        ".magnifier:not([data-cancelled])",
+      );
       if (!overlay) return null;
       const size = Number(document.querySelector("#size").value);
       let best = null;
@@ -182,10 +184,38 @@ const played = (page) =>
     last:
       document.querySelector(".movelist tbody tr:last-child .standard-small")
         ?.textContent ?? null,
-    overlay: Boolean(document.querySelector(".magnifier")),
+    overlay: Boolean(
+      document.querySelector(".magnifier:not([data-cancelled])"),
+    ),
   }));
 
 const name = (c) => (c ? standard(c.col, c.row) : "nothing");
+
+/**
+ * Every cancel says so the same way: the close-up is left up a moment with
+ * its ring gone and a × for its caption, and then it goes. Asked right after
+ * whatever cancelled it.
+ */
+async function saysCancelled(label, page, what) {
+  const shown = await page.evaluate(() => {
+    const overlay = document.querySelector(".magnifier[data-cancelled]");
+    return (
+      overlay && {
+        caption: overlay.querySelector(".magnifier-name").textContent,
+        ring:
+          overlay.querySelector(".magnifier-aim").getAttribute("display") !==
+          "none",
+      }
+    );
+  });
+  if (!shown || shown.caption !== "×" || shown.ring)
+    throw new Error(
+      `${label}: ${what} without a × to say so (${JSON.stringify(shown)})`,
+    );
+  await page.waitForTimeout(450);
+  if (await page.$(".magnifier"))
+    throw new Error(`${label}: ${what}: the close-up is still there`);
+}
 
 /**
  * The one rule about what lifting would do: a cell is offered, named and
@@ -321,7 +351,8 @@ await check("The magnifier", async ({ open }) => {
     if (!start) throw new Error(`${label}: no cell to start from`);
     const gone = async (to) => {
       await touch.move(to.x, to.y);
-      const up = Boolean(await page.$(".magnifier"));
+      const up = Boolean(await page.$(".magnifier:not([data-cancelled])"));
+      if (!up) await saysCancelled(label, page, "left by an edge");
       await touch.up();
       await page.waitForTimeout(60);
       after = await played(page);
@@ -339,7 +370,10 @@ await check("The magnifier", async ({ open }) => {
         const to = { x: start.x + d, y: start.y };
         if (to.x > width - 40) break; // short of the finger's own margin
         await touch.move(to.x, to.y);
-        if (!(await page.$(".magnifier"))) return { states, closed: to };
+        if (!(await page.$(".magnifier:not([data-cancelled])"))) {
+          await saysCancelled(label, page, "the ringed cell left the screen");
+          return { states, closed: to };
+        }
         const state = await look(start, to);
         states.push({ ...state, to });
         if (stop?.(state)) return { states, stopped: state };
@@ -409,7 +443,7 @@ await check("The magnifier", async ({ open }) => {
         stay.x + (end.x - stay.x) / 2,
         stay.y + (end.y - stay.y) / 2,
       );
-      if (!(await page.$(".magnifier")))
+      if (!(await page.$(".magnifier:not([data-cancelled])")))
         throw new Error(`${label}: the close-up went half way to the ${edge}`);
       if (!(await gone(end)) || after.hash !== thrice)
         throw new Error(
@@ -453,11 +487,14 @@ await check("The magnifier", async ({ open }) => {
           for (let step = 3; step < 200; step += 3) {
             const f = { x: p.x + ux * step, y: p.y + uy * step };
             await touch.move(f.x, f.y);
-            if (!(await page.$(".magnifier"))) break;
+            if (!(await page.$(".magnifier:not([data-cancelled])"))) break;
             state = await look(p, f);
             if (!state.under) break;
           }
-          const off = state && !state.under && (await page.$(".magnifier"));
+          const off =
+            state &&
+            !state.under &&
+            (await page.$(".magnifier:not([data-cancelled])"));
           // Not that way: leave by the edge rather than lift on a cell.
           if (!off) await touch.move(1, p.y);
           await touch.up();
@@ -468,6 +505,7 @@ await check("The magnifier", async ({ open }) => {
               `${label}: lifting off the board played ${after.hash}`,
             );
           if (off) {
+            await saysCancelled(label, page, "lifted off the board");
             if (state.caption !== "×")
               throw new Error(
                 `${label}: off the board, the caption says ${state.caption}`,
@@ -485,6 +523,7 @@ await check("The magnifier", async ({ open }) => {
     // A second finger is a change of mind.
     await touch.down(at.x, at.y);
     await touch.second(at.x, at.y, at.x + 50, at.y + 50);
+    await saysCancelled(label, page, "a second finger");
     await touch.up();
     await page.waitForTimeout(60);
     after = await played(page);
@@ -537,9 +576,10 @@ await check("The magnifier", async ({ open }) => {
       if (gap >= 32 || gap < 14) continue;
       await touch.down(p.x, p.y);
       await touch.move(p.x + side * 4, p.y);
-      const stays = Boolean(await page.$(".magnifier"));
+      const stays = Boolean(await page.$(".magnifier:not([data-cancelled])"));
       await touch.move(p.x + side * 12, p.y);
-      const goes = !(await page.$(".magnifier"));
+      const goes = !(await page.$(".magnifier:not([data-cancelled])"));
+      if (goes) await saysCancelled(label, page, "left from the margin");
       const before = (await played(page)).hash;
       await touch.up();
       await page.waitForTimeout(60);

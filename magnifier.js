@@ -47,6 +47,9 @@ const EDGE = { left: 32, right: 32, top: 12, bottom: 12 };
 // A finger that comes down inside that margin has not left by it: it has to
 // go this much nearer that edge than where it came down.
 const NEARER = 8;
+// How long a cancelled close-up takes to go, in milliseconds: long enough to
+// read the × in it, and the stylesheet's fade is timed to end within it.
+const FADE = 400;
 // How much of the ringed cell's area has to stay on the screen. Less, and the
 // close-up is left: about where the cell's centre crosses the edge.
 const KEEP = 0.5;
@@ -68,6 +71,7 @@ export class Magnifier {
     this.play = play;
     this.touch = null;
     this.gone = null; // a finger that has left by an edge, until it lifts
+    this.fading = null; // a cancelled close-up on its way out
     this.frame = 0;
     // On the window, so that a second finger is seen wherever it lands — on
     // the close-up, usually, which covers the board.
@@ -89,6 +93,8 @@ export class Magnifier {
     // The only finger on the screen, so anything still held about an earlier
     // one is stale: its lift went astray.
     this.close();
+    this.fading?.remove();
+    this.fading = null;
     this.gone = null;
     // The board's container rather than the drawing, which is redrawn.
     if (!this.enabled() || !this.board.container.contains(event.target)) return;
@@ -227,14 +233,40 @@ export class Magnifier {
       return;
     }
     const { cell } = this.touch;
-    this.close();
-    if (lifted && cell) this.play(cell, event);
+    const played = lifted && cell;
+    this.close(!played);
+    if (played) this.play(cell, event);
   }
 
-  close() {
+  /**
+   * Take the close-up down. A play is answered by the stone on the board, so
+   * it goes at once; a cancel, whatever caused it, says so the same way every
+   * time — the ring gone, the caption a ×, and the close-up fading out from
+   * there — so that no way of leaving is silent.
+   */
+  close(cancelled = false) {
     cancelAnimationFrame(this.frame);
-    this.touch?.overlay.remove();
+    const t = this.touch;
     this.touch = null;
+    if (!t) return;
+    if (!cancelled) {
+      t.overlay.remove();
+      return;
+    }
+    t.caption.textContent = "×";
+    t.sight.setAttribute("display", "none");
+    t.overlay.toggleAttribute("data-off", true);
+    t.overlay.toggleAttribute("data-cancelled", true);
+    this.fading?.remove();
+    this.fading = t.overlay;
+    // A frame at full strength first, so the × is seen before it fades.
+    requestAnimationFrame(() =>
+      t.overlay.toggleAttribute("data-closing", true),
+    );
+    setTimeout(() => {
+      t.overlay.remove();
+      if (this.fading === t.overlay) this.fading = null;
+    }, FADE);
   }
 
   /**
@@ -244,7 +276,7 @@ export class Magnifier {
    */
   leave() {
     this.gone = this.touch?.id ?? this.gone;
-    this.close();
+    this.close(true);
   }
 
   /**

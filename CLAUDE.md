@@ -412,7 +412,11 @@ that comes *down* inside the margin — a 53x53 corner cell is 29px from the sid
 to it than where it came down. "Not until it has been away from every edge"
 was the first rule, and with a wider margin it let a finger put down near the
 side be swiped off the screen and still play. The ring off the board but on the screen still shows `×` and
-plays nothing on lifting. `board.cellAt()` is the inverse of `at()`,
+plays nothing on lifting. Every cancel then ends the same way, whatever caused
+it: the close-up is left up for `FADE` with its ring gone and `×` for its
+caption, fading out, where the edges used to close it without a word and only
+the lift off the board said anything — which read as some ways out having a ×
+and some not. `board.cellAt()` is the inverse of `at()`,
 turn included. The touch stays with the real board — touch events go to the
 element the touch started on — and `preventDefault` on `touchstart` is what
 stops a click from playing a second stone behind it. What a tap would do is
