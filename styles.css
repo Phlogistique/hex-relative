@@ -954,3 +954,12 @@ body[data-magnify] .hex-board {
 .magnifier[data-off] .magnifier-name {
   color: var(--muted);
 }
+
+/* Every cancel ends the same way: the × shown, then the close-up fading out.
+   It takes no touches meanwhile, so a finger put straight back down reaches
+   the board under it. */
+.magnifier[data-closing] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-in 0.15s;
+}

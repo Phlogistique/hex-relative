@@ -7,8 +7,11 @@
  * opens in the middle of the screen wherever the finger came down, corners of
  * the board and edges of the screen included; that the ring then moves as far
  * as the finger does; that the cell played is the one in the ring, the one the
- * caption names; that a ring off the board, or on a cell the edge of the
- * screen cuts into, is a cancel; and that a touch is only ever one move: no
+ * caption names, even where the edge of the screen cuts into it; that the
+ * ring off the board, the ringed cell less than half on the screen, and the
+ * finger at an edge of the screen all show a × and play nothing on lifting,
+ * without closing anything until then, so that moving back resumes; that a
+ * second finger changes nothing; and that a touch is only ever one move: no
  * click let through behind it to play again.
  *
  * Touches are sent through the DevTools protocol, which is the only way to
@@ -67,7 +70,9 @@ const onPage = (page, col, row) =>
 const closeUp = (page, x, y) =>
   page.evaluate(
     ([x, y]) => {
-      const overlay = document.querySelector(".magnifier");
+      const overlay = document.querySelector(
+        ".magnifier:not([data-cancelled])",
+      );
       if (!overlay) return null;
       const size = Number(document.querySelector("#size").value);
       let best = null;
@@ -88,25 +93,68 @@ const closeUp = (page, x, y) =>
       const polygon = best.cell.querySelector(".hex");
       const matrix = polygon.getScreenCTM();
       const corners = [...polygon.points].map((p) => p.matrixTransform(matrix));
-      const inside = corners.every((a, k) => {
-        const b = corners[(k + 1) % corners.length];
-        const c = corners[(k + 2) % corners.length];
-        const side = (p) =>
-          (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
-        return side({ x, y }) * side(c) >= 0;
-      });
+      // How far inside the outline the point is, in pixels: the least of
+      // its distances to the six sides, negative outside.
+      const margin = Math.min(
+        ...corners.map((a, k) => {
+          const b = corners[(k + 1) % corners.length];
+          const c = corners[(k + 2) % corners.length];
+          const len = Math.hypot(b.x - a.x, b.y - a.y);
+          const side = (p) =>
+            ((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) / len;
+          return side({ x, y }) * Math.sign(side(c));
+        }),
+      );
+      const inside = margin >= 0;
       const whole = corners.every(
         (p) => p.x >= 0 && p.y >= 0 && p.x <= innerWidth && p.y <= innerHeight,
       );
+      // How much of its area is on the screen: sampled on a fine grid over
+      // its box, which is a different way of asking from the page's own, so
+      // that the two can be held against each other.
+      const xs = corners.map((p) => p.x);
+      const ys = corners.map((p) => p.y);
+      const [x0, x1] = [Math.min(...xs), Math.max(...xs)];
+      const [y0, y1] = [Math.min(...ys), Math.max(...ys)];
+      const within = (p) =>
+        corners.every((a, k) => {
+          const b = corners[(k + 1) % corners.length];
+          const c = corners[(k + 2) % corners.length];
+          const side = (q) =>
+            (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x);
+          return side(p) * side(c) >= 0;
+        });
+      let all = 0;
+      let seen = 0;
+      const N = 60;
+      for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+          const p = {
+            x: x0 + ((i + 0.5) * (x1 - x0)) / N,
+            y: y0 + ((j + 0.5) * (y1 - y0)) / N,
+          };
+          if (!within(p)) continue;
+          all++;
+          if (p.x >= 0 && p.y >= 0 && p.x <= innerWidth && p.y <= innerHeight)
+            seen++;
+        }
+      }
+      const onScreen = seen / all;
       best = {
         col: best.index % size,
         row: Math.floor(best.index / size),
         inside,
         whole,
+        onScreen,
+        margin,
       };
       return {
         under: best.inside ? { col: best.col, row: best.row } : null,
         whole: best.whole,
+        onScreen: best.onScreen,
+        // Within a pixel or two of a side, the page and this check can each
+        // round the aim into a different one of the two cells either side.
+        clear: Math.abs(best.margin) > 2,
         aiming:
           overlay.querySelector(".magnifier-aim").getAttribute("display") !==
           "none",
@@ -137,18 +185,127 @@ const played = (page) =>
     last:
       document.querySelector(".movelist tbody tr:last-child .standard-small")
         ?.textContent ?? null,
-    overlay: Boolean(document.querySelector(".magnifier")),
+    overlay: Boolean(
+      document.querySelector(".magnifier:not([data-cancelled])"),
+    ),
   }));
 
 const name = (c) => (c ? standard(c.col, c.row) : "nothing");
 
 /**
- * The one rule about what lifting would do: a cell is offered, named and
- * ringed, exactly when the aim is on one that is on the board and wholly on
- * the screen. Anything the screen cuts into is a cancel. And where it is
- * offered, the ring is round the aim.
+ * The outermost cell on the right of the page's board, half way down, and the
+ * cell inwards of it, with where to press that one.
  */
-function holds(label, state, want) {
+const edgeCells = (page) =>
+  page.evaluate(() => {
+    const svg = document.querySelector("#board svg");
+    const all = [...svg.querySelectorAll(".cell")];
+    const box = svg.getBoundingClientRect();
+    const y = box.top + box.height / 2;
+    const centreOf = (cell) => {
+      const b = cell.querySelector(".hex").getBoundingClientRect();
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    };
+    let x = Math.min(box.right, innerWidth) - 1;
+    while (x > box.left && !document.elementFromPoint(x, y)?.closest(".cell"))
+      x--;
+    const outer = document.elementFromPoint(x, y).closest(".cell");
+    const o = centreOf(outer);
+    let nx = o.x;
+    let next = outer;
+    while (next === outer) {
+      nx -= 2;
+      next = document.elementFromPoint(nx, o.y)?.closest(".cell");
+    }
+    return {
+      outer: all.indexOf(outer),
+      next: all.indexOf(next),
+      at: centreOf(next),
+    };
+  });
+
+/**
+ * A lift on a × plays nothing, and is seen to: the close-up stays up a moment
+ * with the × still in it, fading, and then goes. Asked right after the lift.
+ */
+async function liftsOnX(label, page, what) {
+  const shown = await page.evaluate(() => {
+    const overlay = document.querySelector(".magnifier[data-cancelled]");
+    return (
+      overlay && {
+        caption: overlay.querySelector(".magnifier-name").textContent,
+        ring:
+          overlay.querySelector(".magnifier-aim").getAttribute("display") !==
+          "none",
+      }
+    );
+  });
+  if (!shown || shown.caption !== "×" || shown.ring)
+    throw new Error(
+      `${label}: lifted ${what} without a × to say so (${JSON.stringify(shown)})`,
+    );
+  await page.waitForTimeout(450);
+  if (await page.$(".magnifier"))
+    throw new Error(`${label}: lifted ${what}: the close-up is still there`);
+}
+
+// The page's margins along each edge for a finger on its way off the screen,
+// and how far clear of one a finger that came down in it has to slide before
+// anything moves.
+const EDGE = { left: 0, right: 0, top: 12, bottom: 12 };
+const DEAD = 16;
+
+const gapsOf = (p, width, height) => ({
+  left: p.x,
+  right: width - p.x,
+  top: p.y,
+  bottom: height - p.y,
+});
+
+/**
+ * Whether a finger at `to`, come down at `from`, is on its way off the
+ * screen: true or false, or null where it depends on where the finger has been
+ * in between — in the margin of an edge it came down in, which gives a × only
+ * once the finger has been out of it and back.
+ */
+function leaving(from, to, width, height) {
+  const start = gapsOf(from, width, height);
+  const now = gapsOf(to, width, height);
+  let unsure = false;
+  for (const side of Object.keys(EDGE)) {
+    if (now[side] >= EDGE[side]) continue;
+    if (start[side] >= EDGE[side]) return true;
+    unsure = true;
+  }
+  return unsure ? null : false;
+}
+
+/**
+ * How far the finger counts as having slid: as far as it has, except that a
+ * finger that came down in an edge's margin slides for nothing, towards that
+ * edge or away from it, until it is DEAD clear of the margin.
+ */
+function slidBy(from, to, width, height) {
+  const gap = gapsOf(from, width, height);
+  const span = (v, length, low, high) => {
+    if (gap[low] < EDGE[low]) return [-Infinity, EDGE[low] + DEAD];
+    if (gap[high] < EDGE[high]) return [length - EDGE[high] - DEAD, Infinity];
+    return [v, v];
+  };
+  const along = (v, [lo, hi]) => (v < lo ? v - lo : v > hi ? v - hi : 0);
+  return {
+    x: along(to.x, span(from.x, width, "left", "right")),
+    y: along(to.y, span(from.y, height, "top", "bottom")),
+  };
+}
+
+/**
+ * The one rule about what lifting would do: a cell is offered — named,
+ * ringed — exactly when the aim is on a cell of the board, that cell is at
+ * least half on the screen, and the finger is not on its way off the screen.
+ * Anything else is a ×. And where a cell is offered, the ring is round the aim.
+ */
+function holds(label, state, want, out) {
   // The ring goes round the whole cell, so it is the cell's centre that it
   // stands on: the aim has to be inside it, not at its middle.
   const off = Math.hypot(state.ring.x - want.x, state.ring.y - want.y);
@@ -156,12 +313,25 @@ function holds(label, state, want) {
     throw new Error(
       `${label}: the ring is ${Math.round(off)}px from the aim, which is outside it`,
     );
-  const offered = Boolean(state.under && state.whole);
   const says = state.caption !== "×";
-  if (offered !== says || offered !== state.aiming)
+  if (says !== state.aiming)
     throw new Error(
-      `${label}: on ${name(state.under)}, ${state.whole ? "whole" : "cut"}, ` +
-        `caption ${state.caption}, ring ${state.aiming ? "shown" : "hidden"}`,
+      `${label}: caption ${state.caption}, ring ${state.aiming ? "shown" : "hidden"}`,
+    );
+  // Too near a side to say which cell the aim is in, or too near half on the
+  // screen to say which side of the line it is, the rest is moot.
+  if (!state.clear) return;
+  if (says && !state.caption.endsWith(name(state.under)))
+    throw new Error(
+      `${label}: the aim is on ${name(state.under)}, the caption says ${state.caption}`,
+    );
+  if (state.under && Math.abs(state.onScreen - 0.5) < 0.04) return;
+  if (out === null) return;
+  const offered = Boolean(state.under) && state.onScreen > 0.5 && !out;
+  if (offered !== says)
+    throw new Error(
+      `${label}: on ${name(state.under)}, ${Math.round((state.onScreen ?? 0) * 100)}% on the screen, ` +
+        `the finger ${out ? "on its way off" : "inside"}: caption ${state.caption}`,
     );
 }
 
@@ -179,21 +349,27 @@ await check("The magnifier", async ({ open }) => {
     const { width, height } = page.viewportSize();
     // Where the ring should be: the middle of the screen, moved as far as the
     // finger has moved since it came down.
-    const ringFor = (from, to) => ({
-      x: width / 2 + to.x - from.x,
-      y: height / 2 + to.y - from.y,
-    });
+    const ringFor = (from, to) => {
+      const d = slidBy(from, to, width, height);
+      return { x: width / 2 + d.x, y: height / 2 + d.y };
+    };
     const look = async (from, to) => {
       const want = ringFor(from, to);
       const state = await closeUp(page, want.x, want.y);
       if (!state) throw new Error(`${label}: no close-up`);
-      holds(label, state, want);
+      holds(label, state, want, leaving(from, to, width, height));
       return state;
+    };
+    const lift = async () => {
+      await touch.up();
+      await page.waitForTimeout(60);
+      return played(page);
     };
 
     // A tap that does not move plays what it touched, which opened in the
     // middle of the screen.
-    const aimed = { col: Math.floor(size / 2), row: Math.floor(size / 3) };
+    // The middle of the board.
+    const aimed = { col: (size - 1) / 2, row: (size - 1) / 2 };
     const at = await onPage(page, aimed.col, aimed.row);
     await touch.down(at.x, at.y);
     await page.waitForTimeout(40);
@@ -218,7 +394,9 @@ await check("The magnifier", async ({ open }) => {
     if (after.overlay) throw new Error(`${label}: the close-up stayed up`);
     if (after.last !== name(aimed))
       throw new Error(`${label}: a tap played ${after.last}`);
-    const once = after.hash;
+    // Cleared again: the middle is where the slides below come back to.
+    await page.evaluate(() => document.querySelector("#clear").click());
+    const once = (await played(page)).hash;
 
     // Sliding moves the ring and pans the board, and the lift plays whatever
     // the ring is on by then.
@@ -243,7 +421,7 @@ await check("The magnifier", async ({ open }) => {
     );
     if (new Set(path.map((p) => name(p.under))).size < 3)
       throw new Error(`${label}: sliding did not move the aim`);
-    if (after.last !== name(end.under) || !end.caption.endsWith(after.last))
+    if (!after.last || !end.caption.endsWith(after.last))
       throw new Error(
         `${label}: lifted on ${name(end.under)}, played ${after.last}`,
       );
@@ -251,48 +429,194 @@ await check("The magnifier", async ({ open }) => {
       throw new Error(`${label}: the slide played nothing`);
     const twice = after.hash;
 
-    // The ring run off the board, or off any edge of the screen: nothing.
-    for (const [dx, dy, where] of [
-      [0, -2000, "off the board"],
-      [-(width / 2 - 4), 0, "to the left edge"],
-      [width / 2 - 4, 0, "to the right edge"],
-      [0, -(height / 2 - 4), "to the top"],
-      [0, height / 2 - 4, "to the bottom"],
-    ]) {
-      // From the middle of the screen, so that the finger can go that far.
-      const from = { x: width / 2, y: height / 2 };
-      const cell = await page.evaluate(
-        ({ x, y }) =>
-          Boolean(document.elementFromPoint(x, y)?.closest(".cell")),
-        from,
+    // Somewhere to start that leaves the ring room to reach the right edge
+    // with the board still under it: a cell a fifth of the way across the
+    // board as the page draws it, half way down.
+    const start = await page.evaluate(() => {
+      const box = document.querySelector("#board svg").getBoundingClientRect();
+      const x = box.left + box.width * 0.2;
+      const y = box.top + box.height / 2;
+      const hit = document.elementFromPoint(x, y)?.closest(".cell");
+      return hit && { x, y };
+    });
+    if (!start) throw new Error(`${label}: no cell to start from`);
+
+    // The ring slid towards the right edge, the finger staying well inside
+    // the screen: a cell the edge cuts a little of is still in play, and one
+    // less than half on the screen is a ×, with the close-up still up. Back a
+    // little, and the ring is back; lift there and it plays.
+    const sweep = async () => {
+      await touch.down(start.x, start.y);
+      const seen = { cut: null, x: null };
+      for (let d = 0; d < width; d += 4) {
+        const to = { x: start.x + d, y: start.y };
+        if (to.x > width - 40) break; // short of the finger's own margin
+        await touch.move(to.x, to.y);
+        const state = await look(start, to);
+        if (
+          state.under &&
+          state.clear &&
+          state.onScreen < 0.9 &&
+          state.caption !== "×"
+        )
+          seen.cut = state;
+        if (seen.cut && state.caption === "×") {
+          seen.x = { state, to };
+          break;
+        }
+      }
+      return seen;
+    };
+    let seen = await sweep();
+    if (!seen.cut)
+      throw new Error(`${label}: never saw a cell the edge cuts still in play`);
+    if (!seen.x)
+      throw new Error(`${label}: the ring went off the screen without a ×`);
+    if (!(await page.$(".magnifier:not([data-cancelled])")))
+      throw new Error(`${label}: the × closed the close-up`);
+    const back = { x: seen.x.to.x - 40, y: start.y };
+    await touch.move(back.x, back.y);
+    const resumed = await look(start, back);
+    after = await lift();
+    if (resumed.caption === "×")
+      throw new Error(`${label}: moving back did not bring the ring back`);
+    if (
+      !after.last ||
+      !resumed.caption.endsWith(after.last) ||
+      after.hash === twice
+    )
+      throw new Error(
+        `${label}: lifted on ${resumed.caption}, played ${after.last}`,
       );
-      if (!cell) throw new Error(`${label}: no cell in the middle of the page`);
-      const to = { x: from.x + dx, y: from.y + dy };
-      await touch.down(from.x, from.y);
-      await touch.move(to.x, to.y);
-      const state = await look(from, to);
-      await touch.up();
-      await page.waitForTimeout(60);
-      after = await played(page);
-      if (state.caption !== "×" || after.hash !== twice)
-        throw new Error(`${label}: lifting ${where} played ${after.hash}`);
-    }
     console.log(
-      `  ${pad("", 14)}off the board, or to any edge of the screen: nothing`,
+      `  ${pad("", 14)}${name(seen.cut.under)} ${Math.round(seen.cut.onScreen * 100)}% on the screen in play; ` +
+        `× once it was less than half on the screen, the close-up still up; back, and ${after.last} played`,
+    );
+    let base = after.hash;
+
+    // Lifted on that ×: nothing.
+    seen = await sweep();
+    after = await lift();
+    await liftsOnX(label, page, "with the ringed cell off the screen");
+    if (after.hash !== base)
+      throw new Error(`${label}: lifting on the × played ${after.hash}`);
+
+    // The finger run to the top or bottom of the screen — the sides have no
+    // margin — : a ×, the close-up still up;
+    // back, and the ring is back; to the edge again and lift: nothing.
+    const middle = { x: width / 2, y: height / 2 };
+    for (const [edge, end] of [
+      ["top", { x: start.x, y: 3 }],
+      ["bottom", { x: start.x, y: height - 3 }],
+    ]) {
+      await touch.down(start.x, start.y);
+      await touch.move(end.x, end.y);
+      const there = await look(start, end);
+      const up = Boolean(await page.$(".magnifier:not([data-cancelled])"));
+      if (there.caption !== "×" || !up)
+        throw new Error(
+          `${label}: the finger at the ${edge} edge: caption ${there.caption}, close-up ${up ? "up" : "gone"}`,
+        );
+      // Back to the middle of where it can go: the ring is back over the
+      // board. Except where the edge is near the start, in which case half
+      // way back is enough.
+      const mid = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+      await touch.move(mid.x, mid.y);
+      const again = await look(start, mid);
+      if (again.caption === "×" && again.under && again.onScreen > 0.6)
+        throw new Error(`${label}: back from the ${edge} edge, still a ×`);
+      await touch.move(end.x, end.y);
+      after = await lift();
+      await liftsOnX(label, page, `at the ${edge} edge`);
+      if (after.hash !== base)
+        throw new Error(
+          `${label}: lifting at the ${edge} edge played ${after.hash}`,
+        );
+    }
+    void middle;
+    console.log(
+      `  ${pad("", 14)}the finger at the top or bottom: ×, the close-up still up, back resumes, lifting plays nothing`,
     );
 
-    // A second finger is a change of mind.
-    await touch.down(at.x, at.y);
-    await touch.second(at.x, at.y, at.x + 50, at.y + 50);
-    await touch.up();
-    await page.waitForTimeout(60);
-    after = await played(page);
-    if (after.overlay || after.hash !== twice)
-      throw new Error(`${label}: a second finger left ${after.hash}`);
-    console.log(`  ${pad("", 14)}a second finger: nothing`);
+    // The ring off the board, on the screen: nothing on lifting. From a
+    // corner, slid outwards until the board is left behind — outwards along
+    // the diagonal, straight up or down, or straight across, whichever leaves
+    // the board before the finger comes too near the edge of the screen.
+    {
+      const centre = await onPage(
+        page,
+        Math.floor(size / 2),
+        Math.floor(size / 2),
+      );
+      let found = null;
+      search: for (const corner of [
+        { col: 0, row: 0 },
+        { col: size - 1, row: 0 },
+        { col: 0, row: size - 1 },
+        { col: size - 1, row: size - 1 },
+      ]) {
+        const p = await onPage(page, corner.col, corner.row);
+        const dx = p.x - centre.x;
+        const dy = p.y - centre.y;
+        const len = Math.hypot(dx, dy);
+        for (const [ux, uy] of [
+          [dx / len, dy / len],
+          [0, Math.sign(dy)],
+          [Math.sign(dx), 0],
+        ]) {
+          await touch.down(p.x, p.y);
+          let state = null;
+          let f = p;
+          for (let step = 3; step < 200; step += 3) {
+            f = { x: p.x + ux * step, y: p.y + uy * step };
+            await touch.move(f.x, f.y);
+            state = await look(p, f);
+            if (!state.under || leaving(p, f, width, height) === true) break;
+          }
+          const off =
+            state && !state.under && leaving(p, f, width, height) !== true;
+          // Not that way: lift on a × at the far edge rather than on a cell.
+          if (!off) await touch.move(p.x < width / 2 ? width - 1 : 1, p.y);
+          after = await lift();
+          await liftsOnX(label, page, "off the board");
+          if (after.hash !== base)
+            throw new Error(
+              `${label}: lifting off the board played ${after.hash}`,
+            );
+          if (off) {
+            found = name(corner);
+            break search;
+          }
+        }
+      }
+      if (!found) throw new Error(`${label}: never saw the ring off the board`);
+      console.log(`  ${pad("", 14)}off the board from ${found}: ×, nothing`);
+    }
+
+    // A second finger changes nothing: the close-up stays, and the lift
+    // plays the ringed cell.
+    await touch.down(start.x, start.y);
+    const before = await look(start, start);
+    await touch.second(start.x, start.y, start.x + 50, start.y + 50);
+    await page.waitForTimeout(40);
+    const still = Boolean(await page.$(".magnifier:not([data-cancelled])"));
+    after = await lift();
+    if (!still)
+      throw new Error(`${label}: a second finger closed the close-up`);
+    if (
+      before.caption !== "×" &&
+      after.last &&
+      !before.caption.endsWith(after.last)
+    )
+      throw new Error(`${label}: with a second finger, played ${after.last}`);
+    console.log(
+      `  ${pad("", 14)}a second finger: nothing changes, ${after.hash !== base ? after.last : "nothing"} played`,
+    );
 
     // Every corner of the board opens in the middle of the screen however
-    // near the screen's edge it is, and a tap plays it.
+    // near the screen's edge it is, and a tap plays it — on 53x53 one is close
+    // enough that the finger comes down against the edge, which is not
+    // leaving by it.
     const corners = [];
     for (const corner of [
       { col: 0, row: 0 },
@@ -319,7 +643,245 @@ await check("The magnifier", async ({ open }) => {
           `${label}: tapped ${name(corner)}, played ${after.last}`,
         );
     }
+    // An empty board for what follows, whose corners were played just now.
+    await page.evaluate(() => document.querySelector("#clear").click());
+
+    // Not a press on the board, so no close-up and the page keeps the touch:
+    // the empty corners of the drawing, well clear of its outermost cells, and
+    // the field that names a cell, standing in one of them.
+    {
+      const empty = await page.evaluate(() => {
+        const svg = document.querySelector("#board svg");
+        const box = svg.getBoundingClientRect();
+        const centres = [...svg.querySelectorAll(".cell")].map((c) => {
+          const b = c.getBoundingClientRect();
+          return {
+            x: b.x + b.width / 2,
+            y: b.y + b.height / 2,
+            r: b.width / 2,
+          };
+        });
+        for (let y = box.top + 4; y < box.bottom - 4; y += 6) {
+          for (let x = box.left + 4; x < box.right - 4; x += 6) {
+            if (document.elementFromPoint(x, y) !== svg) continue;
+            const gap = Math.min(
+              ...centres.map((c) => Math.hypot(c.x - x, c.y - y) - c.r),
+            );
+            if (gap > 45) return { x, y, gap: Math.round(gap) };
+          }
+        }
+        return null;
+      });
+      const field = await page.evaluate(() => {
+        const b = document.querySelector("#coord").getBoundingClientRect();
+        return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+      });
+      for (const [what, p] of [
+        [`empty drawing ${empty?.gap}px from the nearest cell`, empty],
+        ["the coordinate field", field],
+      ]) {
+        if (!p) throw new Error(`${label}: found no ${what}`);
+        const before = (await played(page)).hash;
+        await touch.down(p.x, p.y);
+        await page.waitForTimeout(40);
+        const opened = Boolean(await page.$(".magnifier"));
+        await touch.up();
+        await page.waitForTimeout(60);
+        after = await played(page);
+        if (opened || after.hash !== before)
+          throw new Error(`${label}: touching ${what} opened the close-up`);
+      }
+      console.log(
+        `  ${pad("", 14)}empty drawing ${empty.gap}px from the cells, and the coordinate field: no close-up`,
+      );
+    }
+
+    // A corner inside the top or bottom margin: the finger came down there,
+    // so it is pressing that cell. Pressed harder towards the edge, or eased
+    // off it, it is still that cell and the board does not move; only once
+    // it has been well away and comes back is the edge a ×.
+    const inside = [];
+    for (const corner of [
+      { col: 0, row: 0 },
+      { col: size - 1, row: 0 },
+      { col: 0, row: size - 1 },
+      { col: size - 1, row: size - 1 },
+    ]) {
+      const p = await onPage(page, corner.col, corner.row);
+      const side = p.y < height / 2 ? -1 : 1;
+      const gap = side < 0 ? p.y : height - p.y;
+      if (gap >= EDGE.top || gap < 4) continue;
+      const at = (g) => ({ x: p.x, y: side < 0 ? g : height - g });
+      // Nearer the edge, and then eased off to just short of DEAD clear of
+      // the margin: the same cell, ringed in the same place, and it plays.
+      for (const g of [Math.max(1, gap - 3), EDGE.top + DEAD - 3]) {
+        await touch.down(p.x, p.y);
+        await touch.move(p.x, at(g).y);
+        const state = await look(p, at(g));
+        after = await lift();
+        if (!state.caption.endsWith(name(corner)))
+          throw new Error(
+            `${label}: pressed ${name(corner)} ${Math.round(gap)}px from the edge, at ${Math.round(g)}px the caption says ${state.caption}`,
+          );
+        if (Math.hypot(state.ring.x - width / 2, state.ring.y - height / 2) > 1)
+          throw new Error(
+            `${label}: pressed ${name(corner)}, at ${Math.round(g)}px the ring moved`,
+          );
+        if (after.last !== name(corner))
+          throw new Error(
+            `${label}: pressed ${name(corner)}, moved to ${Math.round(g)}px, played ${after.last}`,
+          );
+        // Take it off again, so that the next press finds it empty.
+        await page.evaluate(() => document.querySelector("#prev").click());
+      }
+      // Out of the margin and clear of the dead span, and back to where it
+      // came down: the aim is back on the same cell, and it is a × now — the
+      // edge is armed, having been left.
+      await touch.down(p.x, p.y);
+      await touch.move(p.x, at(EDGE.top + DEAD + 10).y);
+      await look(p, at(EDGE.top + DEAD + 10));
+      await touch.move(p.x, p.y);
+      const back = await look(p, p);
+      const before = (await played(page)).hash;
+      after = await lift();
+      if (name(back.under) !== name(corner) || back.caption !== "×")
+        throw new Error(
+          `${label}: ${name(corner)}: back in the margin, on ${name(back.under)}, caption ${back.caption}`,
+        );
+      await liftsOnX(label, page, "back in the margin");
+      if (after.hash !== before)
+        throw new Error(`${label}: back in the margin, played ${after.last}`);
+      inside.push(`${name(corner)} (${Math.round(gap)}px)`);
+    }
+    if (inside.length)
+      console.log(
+        `  ${pad("", 14)}pressed in the margin at ${inside.join(", ")}: nearer or eased off, the same cell; away and back, ×`,
+      );
+
+    // A press a cell short of the right edge opens on that cell, and a push
+    // towards the edge reaches the edge cell, and the × past it, before the
+    // finger is off the glass: the sides have no margin to run into.
+    {
+      const cells = await edgeCells(page);
+      const cellOf = (i) => ({ col: i % size, row: Math.floor(i / size) });
+      const outer = cellOf(cells.outer);
+      const next = cellOf(cells.next);
+      await touch.down(cells.at.x, cells.at.y);
+      await page.waitForTimeout(40);
+      const first = await look(cells.at, cells.at);
+      if (!first.caption.endsWith(name(next)))
+        throw new Error(
+          `${label}: pressed ${name(next)}, the close-up opened on ${first.caption}`,
+        );
+      const last = size - 1;
+      const onEdge = (c) =>
+        c &&
+        (outer.col === last
+          ? c.col === last
+          : outer.col === 0
+            ? c.col === 0
+            : outer.row === last
+              ? c.row === last
+              : c.row === 0);
+      let reached = null;
+      let past = false;
+      for (let x = cells.at.x; width - x > 4 && !past; x += 2) {
+        const to = { x, y: cells.at.y };
+        await touch.move(to.x, to.y);
+        const state = await look(cells.at, to);
+        if (state.caption !== "×" && onEdge(state.under))
+          reached ??= { ...state, gap: width - x };
+        if (reached && state.caption === "×") past = true;
+      }
+      // Back off the board's edge before lifting, so as to play nothing.
+      await touch.move(width - 3, cells.at.y);
+      after = await lift();
+      if (!reached)
+        throw new Error(
+          `${label}: from ${name(next)}, ${Math.round(width - cells.at.x)}px from the screen's edge, never reached the edge`,
+        );
+      console.log(
+        `  ${pad("", 14)}pressed ${name(next)}, ${Math.round(width - cells.at.x)}px from the screen's edge: ` +
+          `${name(reached.under)} with the finger ${Math.round(reached.gap)}px from it${past ? ", and the × past it" : ""}`,
+      );
+    }
+
+    // A press just past the outermost cells, on the coloured edge or the
+    // labels, is a press for the cell nearest it.
+    {
+      const past = await page.evaluate(() => {
+        const svg = document.querySelector("#board svg");
+        const box = svg.getBoundingClientRect();
+        const y = box.top + box.height / 2;
+        let x = Math.min(box.right, innerWidth) - 1;
+        while (
+          x > box.left &&
+          !document.elementFromPoint(x, y)?.closest(".cell")
+        )
+          x--;
+        const cell = document.elementFromPoint(x, y).closest(".cell");
+        const right = cell.getBoundingClientRect().right;
+        return { x: right + 6, y, edge: Math.round(innerWidth - right) };
+      });
+      const hit = await page.evaluate(
+        ({ x, y }) =>
+          Boolean(document.elementFromPoint(x, y)?.closest(".cell")),
+        past,
+      );
+      if (hit)
+        throw new Error(`${label}: ${past.x} was meant to be past the cells`);
+      await touch.down(past.x, past.y);
+      await page.waitForTimeout(40);
+      const state = await look(past, past);
+      after = await lift();
+      if (
+        state.caption === "×" ||
+        !after.last ||
+        !state.caption.endsWith(after.last)
+      )
+        throw new Error(
+          `${label}: pressed past the outermost cell: caption ${state.caption}, played ${after.last}`,
+        );
+      console.log(
+        `  ${pad("", 14)}pressed past the outermost cell, ${past.edge}px from the screen's edge: ${after.last}`,
+      );
+    }
     console.log(`  ${pad("", 14)}corners: ${corners.join(", ")}`);
+    await page.close();
+  }
+
+  // No margin on the sides: on 53x53, whose outermost cells come close to
+  // the glass, a cell is still in play with the finger nearly at it.
+  {
+    const page = await open("#53", PHONE);
+    const touch = await finger(page);
+    const { width, height } = page.viewportSize();
+    const cells = await edgeCells(page);
+    await touch.down(cells.at.x, cells.at.y);
+    let near = null;
+    for (let x = cells.at.x; x < width - 2; x += 2) {
+      const to = { x, y: cells.at.y };
+      await touch.move(to.x, to.y);
+      const state = await closeUp(
+        page,
+        width / 2 + to.x - cells.at.x,
+        height / 2 + to.y - cells.at.y,
+      );
+      if (!state.clear) continue;
+      const offered = Boolean(state.under) && state.onScreen > 0.55;
+      if (offered && state.caption === "×")
+        throw new Error(
+          `sides: ${name(state.under)} at ${Math.round(width - x)}px from the glass gave a ×`,
+        );
+      if (offered && width - x < 32) near ??= { state, gap: width - x };
+    }
+    await touch.up();
+    await page.waitForTimeout(60);
+    if (!near)
+      throw new Error("sides: never had a cell with the finger near the glass");
+    console.log(
+      `  ${pad("53x53 sides", 14)}${name(near.state.under)} in play with the finger ${Math.round(near.gap)}px from the glass`,
+    );
     await page.close();
   }
 
@@ -328,12 +890,12 @@ await check("The magnifier", async ({ open }) => {
   for (const on of [true, false]) {
     const page = await open("#13", PHONE);
     await page.setChecked("#magnify", on);
-    const at = await onPage(page, 3, 3);
+    const at = await onPage(page, 6, 6);
     await page.touchscreen.tap(at.x, at.y);
     await page.waitForTimeout(80);
     const { hash } = await played(page);
     console.log(`  tap, magnifier ${on ? "on " : "off"} -> ${hash}`);
-    if (hash !== "#13,d4") throw new Error(`tap played ${hash}`);
+    if (hash !== "#13,g7") throw new Error(`tap played ${hash}`);
     await page.close();
   }
 });
