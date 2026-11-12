@@ -74,8 +74,10 @@ of it wherever on the screen you touched. Slide and the ring moves as far as you
 the board pans under it; lift to play the ringed cell and go back to the whole board. Where there is
 nothing to play — the ring off the board, the ringed cell more than half off the screen, or your
 finger at the edge of the screen — the ring goes and the caption says ×: lifting there plays
-nothing, and moving back brings the ring back. A press near the edge of the screen keeps the cell it
-pressed while it wobbles, and a press just past the board's outermost cells is a press for the
+nothing, and moving back brings the ring back. A press near the edge of the board counts as a little nearer
+the edge than your finger, so that a cell short of it opens on the edge cell and you only ever
+slide inwards from there. A press near the edge of the screen keeps the cell it pressed while it
+wobbles, and a press just past the board's outermost cells is a press for the
 nearest of them; one in the empty corners of the drawing does not open the magnifier at all.
 
 A pass and a swap are moves like any other and keep their place in that list. The swap is the pie

@@ -57,6 +57,9 @@ const DEAD = 16;
 // labels. Further out the drawing's corners are empty, and a touch there is
 // the page's — to scroll with, say.
 const REACH = 20;
+// How much further out than the finger a press near an edge of the board
+// counts as, in pixels on the page, at the outermost cells.
+const OUTWARD = 20;
 // How long a close-up lifted on a × takes to go, in milliseconds, and the
 // stylesheet's fade is timed to end within it.
 const FADE = 400;
@@ -110,20 +113,43 @@ export class Magnifier {
     const at = new DOMPoint(finger.clientX, finger.clientY).matrixTransform(
       toDrawing,
     );
-    // The cell pressed, held to the board: a press just past the last row or
-    // column, on the coloured edge or the labels, is a press for the cell
-    // nearest it. Further out than that, in the empty corners of the drawing,
-    // it is not a press on the board at all, and the page keeps the touch.
-    const last = this.board.size - 1;
-    const near = this.board.cellAt(at);
-    const touched = {
-      col: Math.max(0, Math.min(last, near.col)),
-      row: Math.max(0, Math.min(last, near.row)),
-    };
-    const pressed = this.board.at(touched.col, touched.row);
+    // Held to the board: a press just past the last row or column, on the
+    // coloured edge or the labels, is a press for the cell nearest it.
+    const board = this.board;
+    const last = board.size - 1;
+    const hold = ({ col, row }) => ({
+      col: Math.max(0, Math.min(last, col)),
+      row: Math.max(0, Math.min(last, row)),
+    });
+    // Further out than that, in the empty corners of the drawing, it is not a
+    // press on the board at all, and the page keeps the touch.
     const page = svg.getScreenCTM().a;
-    const beyond = Math.hypot(at.x - pressed.x, at.y - pressed.y) - 1;
-    if (beyond * page > REACH) return;
+    const nearest = hold(board.cellAt(at));
+    const centre = board.at(nearest.col, nearest.row);
+    if ((Math.hypot(at.x - centre.x, at.y - centre.y) - 1) * page > REACH)
+      return;
+    // The cell pressed is read off a board a little smaller than the one
+    // drawn: the press is stretched out from the board's middle, so that one
+    // near an edge counts as nearer it than the finger is, by OUTWARD pixels
+    // at the outermost cells and by nothing in the middle. A finger that comes
+    // down a cell short of the edge it means then has the edge cell already,
+    // and anything else is a slide inwards — not towards the edge of the
+    // screen, which is where a slide outwards would have taken it.
+    const middle = last / 2;
+    const stretch =
+      1 + Math.min(0.3, OUTWARD / (page * Math.sqrt(3)) / Math.max(1, middle));
+    const { col, row } = board.locate(at);
+    const touched = hold(
+      board.cellAt(
+        board.turn(
+          center(
+            middle + (col - middle) * stretch,
+            middle + (row - middle) * stretch,
+          ),
+        ),
+      ),
+    );
+    const pressed = board.at(touched.col, touched.row);
     // No scrolling, and no click once the finger lifts: the lift is ours.
     event.preventDefault();
 

@@ -336,7 +336,8 @@ await check("The magnifier", async ({ open }) => {
 
     // A tap that does not move plays what it touched, which opened in the
     // middle of the screen.
-    const aimed = { col: Math.floor(size / 2), row: Math.floor(size / 3) };
+    // The middle of the board, which a press is read at unstretched.
+    const aimed = { col: (size - 1) / 2, row: (size - 1) / 2 };
     const at = await onPage(page, aimed.col, aimed.row);
     await touch.down(at.x, at.y);
     await page.waitForTimeout(40);
@@ -361,7 +362,9 @@ await check("The magnifier", async ({ open }) => {
     if (after.overlay) throw new Error(`${label}: the close-up stayed up`);
     if (after.last !== name(aimed))
       throw new Error(`${label}: a tap played ${after.last}`);
-    const once = after.hash;
+    // Cleared again: the middle is where the slides below come back to.
+    await page.evaluate(() => document.querySelector("#clear").click());
+    const once = (await played(page)).hash;
 
     // Sliding moves the ring and pans the board, and the lift plays whatever
     // the ring is on by then.
@@ -726,6 +729,72 @@ await check("The magnifier", async ({ open }) => {
         `  ${pad("", 14)}pressed in the margin at ${inside.join(", ")}: nearer or eased off, the same cell; away and back, ×`,
       );
 
+    // A press a cell short of the edge is read as nearer the edge than the
+    // finger, so it opens on a cell of the edge: from there anything else is a
+    // slide inwards, away from the edge of the screen.
+    {
+      const cells = await page.evaluate(() => {
+        const svg = document.querySelector("#board svg");
+        const all = [...svg.querySelectorAll(".cell")];
+        const box = svg.getBoundingClientRect();
+        const y = box.top + box.height / 2;
+        const centreOf = (cell) => {
+          const b = cell.querySelector(".hex").getBoundingClientRect();
+          return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+        };
+        let x = Math.min(box.right, innerWidth) - 1;
+        while (
+          x > box.left &&
+          !document.elementFromPoint(x, y)?.closest(".cell")
+        )
+          x--;
+        const outer = document.elementFromPoint(x, y).closest(".cell");
+        const o = centreOf(outer);
+        let nx = o.x;
+        let next = outer;
+        while (next === outer) {
+          nx -= 2;
+          next = document.elementFromPoint(nx, o.y)?.closest(".cell");
+        }
+        return {
+          outer: all.indexOf(outer),
+          next: all.indexOf(next),
+          at: centreOf(next),
+        };
+      });
+      const cellOf = (i) => ({ col: i % size, row: Math.floor(i / size) });
+      const outer = cellOf(cells.outer);
+      const next = cellOf(cells.next);
+      await touch.down(cells.at.x, cells.at.y);
+      await page.waitForTimeout(40);
+      const state = await look(cells.at, cells.at);
+      after = await lift();
+      // Stretched out from the middle of the board, the press may land a row
+      // along as well as out: what matters is that it is on the same edge.
+      const last = size - 1;
+      const edge = (c) =>
+        outer.col === last
+          ? c.col === last
+          : outer.col === 0
+            ? c.col === 0
+            : outer.row === last
+              ? c.row === last
+              : c.row === 0;
+      const got = state.under;
+      if (
+        !got ||
+        !edge(got) ||
+        !state.caption.endsWith(name(got)) ||
+        after.last !== name(got)
+      )
+        throw new Error(
+          `${label}: pressed ${name(next)}, a cell short of the edge ${name(outer)} is on: caption ${state.caption}, played ${after.last}`,
+        );
+      console.log(
+        `  ${pad("", 14)}pressed ${name(next)}, a cell short of the edge: opened on ${name(got)}, on the edge, and played it`,
+      );
+    }
+
     // A press just past the outermost cells, on the coloured edge or the
     // labels, is a press for the cell nearest it.
     {
@@ -775,12 +844,14 @@ await check("The magnifier", async ({ open }) => {
   for (const on of [true, false]) {
     const page = await open("#13", PHONE);
     await page.setChecked("#magnify", on);
-    const at = await onPage(page, 3, 3);
+    // The middle, which a press is read at unstretched whether or not the
+    // magnifier is on.
+    const at = await onPage(page, 6, 6);
     await page.touchscreen.tap(at.x, at.y);
     await page.waitForTimeout(80);
     const { hash } = await played(page);
     console.log(`  tap, magnifier ${on ? "on " : "off"} -> ${hash}`);
-    if (hash !== "#13,d4") throw new Error(`tap played ${hash}`);
+    if (hash !== "#13,g7") throw new Error(`tap played ${hash}`);
     await page.close();
   }
 });

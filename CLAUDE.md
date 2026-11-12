@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at any edge, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, and one tap being one move |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at any edge, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a press a cell short of an edge opening on that edge, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, and one tap being one move |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -423,6 +423,16 @@ long press wobbles, and one that eases off the edge or presses into it keeps
 the cell it pressed. Before that, a finger landing near the edge got a `×` from
 8px of wobble, and dragging back towards the middle moved the aim off the cell
 it wanted.
+
+The cell a press opens on is read off a board a little smaller than the one
+drawn: the press is stretched out from the board's middle so that at the
+outermost cells it counts `OUTWARD` (20px on the page) further out than the
+finger, and in the middle not at all. A finger that comes down a cell short of
+the edge it means then has a cell of that edge already, and anything else is a
+slide inwards. Without it, reaching the edge from a press just inside it meant
+sliding towards the edge of the screen and into the margin's `×`. The stretch is
+radial, so a press near a side can open a row along as well as one out; the
+loupe shows which.
 
 Only a press on the drawing opens the close-up, and only within `REACH` (20px)
 of a cell. A press just past the outermost cells, on the coloured edge or the
