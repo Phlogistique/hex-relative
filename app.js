@@ -1,4 +1,5 @@
 import { HexBoard } from "./board.js";
+import { Magnifier } from "./magnifier.js";
 import { parse, relative, standard, variants } from "./mason.js";
 import { formatHash, parseHash } from "./url.js";
 
@@ -15,6 +16,7 @@ const ui = {
   labels: el("labels"),
   style: el("style"),
   numbers: el("numbers"),
+  magnify: el("magnify"),
   mode: el("mode"),
   pass: el("pass"),
   swap: el("swap"),
@@ -55,30 +57,44 @@ function nextColour(event) {
   return board.toPlay();
 }
 
+/**
+ * What a tap on a cell would do: put down "red" or "blue", "erase" the stone
+ * there, or nothing at all.
+ *
+ * Only erasing takes a stone off. While alternating, an occupied cell is
+ * simply not playable and a click on one does nothing; with a colour forced,
+ * it may be overwritten with the other colour, for setting positions up.
+ */
+function outcome(cell, event) {
+  // Touch devices have no hover, so "inspect" is the way to read a cell's name
+  // without disturbing the position.
+  if (ui.mode.value === "inspect") return null;
+  const colour = nextColour(event);
+  const occupied = board.stoneAt(cell.col, cell.row);
+  const forced = ui.mode.value === "red" || ui.mode.value === "blue";
+  if (colour === null) return occupied ? "erase" : null;
+  if (!occupied || (forced && colour !== occupied)) return colour;
+  return null;
+}
+
 function placeStone(cell, event) {
   lastTouched = cell;
   board.mark(null);
   note = "";
-  // Touch devices have no hover, so "inspect" is the way to read a cell's name
-  // without disturbing the position.
-  if (ui.mode.value === "inspect") {
-    refresh();
-    return;
-  }
-
-  const colour = nextColour(event);
-  const occupied = board.stoneAt(cell.col, cell.row);
-  // Only erasing takes a stone off. While alternating, an occupied cell is
-  // simply not playable and a click on one does nothing; with a colour forced,
-  // it may be overwritten with the other colour, for setting positions up.
-  const forced = ui.mode.value === "red" || ui.mode.value === "blue";
-  if (colour === null) {
-    if (occupied) board.play(cell.col, cell.row, null);
-  } else if (!occupied || (forced && colour !== occupied)) {
-    board.play(cell.col, cell.row, colour);
-  }
+  const what = outcome(cell, event);
+  if (what === "erase") board.play(cell.col, cell.row, null);
+  else if (what) board.play(cell.col, cell.row, what);
   refresh();
 }
+
+// On a touch screen, touching the board shows it close up, and lifting plays.
+new Magnifier(board, {
+  enabled: () => ui.magnify.checked,
+  aim: (cell) => outcome(cell),
+  name: (cell) =>
+    `${relative(cell.col, cell.row, board.size)} · ${standard(cell.col, cell.row)}`,
+  play: (cell, event) => placeStone(cell, event),
+});
 
 /** Everything that has to follow a change of position or board size. */
 function refresh() {
@@ -541,6 +557,11 @@ function list(items) {
 ui.size.addEventListener("change", () => setSize(Number(ui.size.value)));
 ui.labels.addEventListener("change", () => board.setLabels(ui.labels.value));
 ui.style.addEventListener("change", () => setStyle(ui.style.value));
+// The page gives up dragging the board to scroll while the magnifier has it.
+const magnifying = () =>
+  document.body.toggleAttribute("data-magnify", ui.magnify.checked);
+ui.magnify.addEventListener("change", magnifying);
+magnifying();
 ui.numbers.addEventListener("change", () => {
   board.setShowNumbers(ui.numbers.checked);
   writeHash();

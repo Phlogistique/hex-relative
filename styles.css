@@ -876,3 +876,81 @@ footer {
   font-size: 0.85rem;
   max-width: 70ch;
 }
+
+/* --- the magnifier ---
+   The board close up across the whole screen while a finger is on it. The
+   copy of the drawing is moved by a transform alone, so panning repaints
+   nothing; the aim moves inside it. */
+
+/* Only a touch screen has a use for it, so only a touch screen is offered it. */
+@media not (any-pointer: coarse) {
+  .touch-only {
+    display: none;
+  }
+}
+
+body[data-magnify] .hex-board {
+  touch-action: none;
+}
+
+.magnifier {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  background: var(--bg);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.magnifier > svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.magnifier-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 0.16;
+  stroke-linejoin: round;
+}
+
+.magnifier-erase {
+  stroke: var(--ink);
+  stroke-dasharray: 0.3 0.2;
+}
+
+.magnifier-ghost {
+  opacity: 0.5;
+}
+
+.magnifier-name {
+  position: absolute;
+  left: 50%;
+  top: max(0.75rem, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0.2rem 0.8rem;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.magnifier[data-low] .magnifier-name {
+  top: auto;
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.magnifier[data-off] .magnifier-name {
+  color: var(--muted);
+}

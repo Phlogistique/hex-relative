@@ -42,6 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell, the ring off the board, at any edge of the screen or a second finger playing nothing, and one tap being one move |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -383,6 +384,28 @@ fall out of that, none of them obvious from the markup:
 **The page carries no explanatory prose.** Everything is in `title` tooltips —
 the heading, each control, the board, each of the four names in the Cell panel.
 Added by request; keep it that way unless asked otherwise.
+
+**The magnifier is a copy of the drawing, moved by a transform.** With it on
+(the default; the toggle is only shown where `any-pointer: coarse`), a touch on
+the board puts a clone of the board's SVG up across the screen at about a
+hundred cells to a screen, the touched cell ringed **in the middle of the
+screen** — not under the finger. Under the finger was the first version, and a
+finger near the edge of the screen then left the ring no room on that side,
+which is where the cells near the edge of the board are, the ones most often
+aimed at from there. The ring then moves on screen exactly as far as the
+finger does, while the aim moves over the board at `max(page scale, zoom / 2)`
+pixels per unit, slower than the close-up's own scale, so it outruns the ring
+and the view pans. The lift plays the ringed cell and takes the overlay down.
+
+A cell counts only while it is on the board and every corner of its hexagon is
+on the screen, so running the ring off the board or off any edge of the screen
+cancels, as does a second finger. `board.cellAt()` is the inverse of `at()`,
+turn included. The touch stays with the real board — touch events go to the
+element the touch started on — and `preventDefault` on `touchstart` is what
+stops a click from playing a second stone behind it. What a tap would do is
+`outcome()` in `app.js`, shared by the click and the ghost stone, so the two
+cannot disagree. The browser's Fullscreen API is not used: `touchstart` does
+not count as a user gesture for it, and an iPhone does not offer it at all.
 
 **`mason.js` and `url.js` touch no DOM** and are covered by unit tests. Keep
 anything testable on that side of the line.
