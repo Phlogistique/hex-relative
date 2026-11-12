@@ -71,8 +71,10 @@ arrow keys and `End`, or click any row of the stone list to jump to that positio
 On a touch screen the magnifier is on unless its box is unticked: touching the board puts it up
 close across the whole screen, about ten cells by ten, with the cell you touched ringed in the middle
 of it wherever on the screen you touched. Slide and the ring moves as far as your finger does while
-the board pans under it; lift to play the ringed cell and go back to the whole board. Lifting with
-the ring off the board or at the edge of the screen, or putting a second finger down, plays nothing.
+the board pans under it; lift to play the ringed cell and go back to the whole board. Every edge
+of the screen is a way out: run your finger to one, or the ringed cell wholly off one, and the
+whole board is back at once with nothing played. Putting a second finger down does the same, and
+lifting with the ring off the board plays nothing.
 
 A pass and a swap are moves like any other and keep their place in that list. The swap is the pie
 rule as hexworld records it: the board is reflected across its long diagonal and every stone changes

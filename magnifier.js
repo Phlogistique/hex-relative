@@ -7,9 +7,12 @@
  * the whole screen, about a hundred cells of it, the cell that was touched in
  * the middle and ringed. Sliding moves the ring as far as the finger moves and
  * pans the board under it, and lifting plays the ringed cell and puts the page
- * back. Lifting with the ring off the board, or on a cell the edge of the
- * screen cuts into, plays nothing, which is the way out of a touch that was
- * not meant.
+ * back.
+ *
+ * Every edge of the screen is a way out: the finger run to one, or the ringed
+ * cell run wholly off one, puts the page back there and then and plays
+ * nothing. A cell the edge only cuts into is still in play. Lifting with the
+ * ring off the board, on the screen, plays nothing too.
  *
  * The ring starts in the middle of the screen whichever part of the screen
  * the finger came down on, and not under the finger: a finger near the edge
@@ -35,6 +38,9 @@ const CELL_AREA = (3 * Math.sqrt(3)) / 2;
 // Never less close up than this against the board as the page draws it, which
 // on a small board would otherwise be no closer at all.
 const MIN_ZOOM = 1.6;
+// How near the edge of the screen, in pixels, the finger is taken to have run
+// off it: as near as a finger's reported centre reliably gets.
+const EDGE = 12;
 // How far the aim may run past the board, in cells, before it stops: far
 // enough to leave the board and cancel, near enough to come straight back.
 const OVERRUN = 1.5;
@@ -52,24 +58,31 @@ export class Magnifier {
     this.name = name;
     this.play = play;
     this.touch = null;
+    this.gone = null; // a finger that has left by an edge, until it lifts
     this.frame = 0;
-    // On the board's container, which outlives every redraw of the board.
-    board.container.addEventListener("touchstart", (e) => this.start(e), {
-      passive: false,
-    });
+    // On the window, so that a second finger is seen wherever it lands — on
+    // the close-up, usually, which covers the board.
+    addEventListener("touchstart", (e) => this.start(e), { passive: false });
     addEventListener("touchmove", (e) => this.move(e), { passive: false });
     addEventListener("touchend", (e) => this.end(e, true));
     addEventListener("touchcancel", (e) => this.end(e, false));
   }
 
   start(event) {
-    if (this.touch) {
+    if (event.touches.length > 1) {
       // A second finger: take it as a change of mind.
-      this.close();
-      event.preventDefault();
+      if (this.touch || this.gone !== null) {
+        this.leave();
+        event.preventDefault();
+      }
       return;
     }
-    if (!this.enabled() || event.touches.length > 1) return;
+    // The only finger on the screen, so anything still held about an earlier
+    // one is stale: its lift went astray.
+    this.close();
+    this.gone = null;
+    // The board's container rather than the drawing, which is redrawn.
+    if (!this.enabled() || !this.board.container.contains(event.target)) return;
     const svg = this.board.svg;
     if (!svg) return;
     // No scrolling, and no click once the finger lifts: the lift is ours.
@@ -133,6 +146,9 @@ export class Magnifier {
       id: finger.identifier,
       from: { x: finger.clientX, y: finger.clientY },
       finger: { x: finger.clientX, y: finger.clientY },
+      // A finger that came down against an edge has not run off it, so an
+      // edge only counts once the finger has been away from all of them.
+      armed: !this.atEdge(finger.clientX, finger.clientY, screen),
       at: this.board.at(touched.col, touched.row),
       origin: { x: view.x, y: view.y },
       screen,
@@ -158,7 +174,26 @@ export class Magnifier {
     return null;
   }
 
+  /** Whether a finger is near enough an edge of the screen to have left it. */
+  atEdge(x, y, screen) {
+    return (
+      x - screen.left < EDGE ||
+      y - screen.top < EDGE ||
+      screen.right - x < EDGE ||
+      screen.bottom - y < EDGE
+    );
+  }
+
+  /** Whether an event is about a finger that has already left by an edge. */
+  after(event) {
+    for (const t of event.changedTouches) {
+      if (t.identifier === this.gone) return true;
+    }
+    return false;
+  }
+
   move(event) {
+    if (this.after(event)) event.preventDefault();
     const finger = this.ours(event);
     if (!finger) return;
     event.preventDefault();
@@ -168,11 +203,20 @@ export class Magnifier {
   }
 
   end(event, lifted) {
+    if (this.after(event)) {
+      event.preventDefault();
+      this.gone = null;
+      return;
+    }
     const finger = this.ours(event);
     if (!finger) return;
     event.preventDefault();
     this.touch.finger = { x: finger.clientX, y: finger.clientY };
     this.update();
+    if (!this.touch) {
+      this.gone = null; // it left by an edge on the way, and has now lifted
+      return;
+    }
     const { cell } = this.touch;
     this.close();
     if (lifted && cell) this.play(cell, event);
@@ -182,6 +226,16 @@ export class Magnifier {
     cancelAnimationFrame(this.frame);
     this.touch?.overlay.remove();
     this.touch = null;
+  }
+
+  /**
+   * Put the page back and play nothing, and pay no more attention to this
+   * finger until it lifts — except to keep it from scrolling the page or
+   * clicking what it lifts over.
+   */
+  leave() {
+    this.gone = this.touch?.id ?? this.gone;
+    this.close();
   }
 
   /**
@@ -218,26 +272,38 @@ export class Magnifier {
     const t = this.touch;
     if (!t) return;
     const board = this.board;
+    if (this.atEdge(t.finger.x, t.finger.y, t.screen)) {
+      if (t.armed) {
+        this.leave();
+        return;
+      }
+    } else {
+      t.armed = true;
+    }
     const point = this.target();
     const ring = this.sighted();
     const x = ring.x - (point.x - t.origin.x) * t.zoom;
     const y = ring.y - (point.y - t.origin.y) * t.zoom;
     t.copy.style.transform = `translate(${x}px, ${y}px)`;
 
-    // A cell counts only while it is on the board and wholly on the screen:
-    // one the screen cuts into is one the ring has run off the edge for, and
-    // lifting there plays nothing.
+    // The ringed cell run wholly off the screen is the other way out; one the
+    // edge only cuts into is still in play.
     const found = board.cellAt(point);
     const centre = board.at(found.col, found.row);
-    const whole = board.vertices().every(([vx, vy]) => {
-      const sx = x + (centre.x + vx - t.origin.x) * t.zoom;
-      const sy = y + (centre.y + vy - t.origin.y) * t.zoom;
-      return (
-        sx >= 0 && sy >= 0 && sx <= t.screen.width && sy <= t.screen.height
-      );
-    });
+    const corners = board.vertices().map(([vx, vy]) => ({
+      x: x + (centre.x + vx - t.origin.x) * t.zoom,
+      y: y + (centre.y + vy - t.origin.y) * t.zoom,
+    }));
+    if (
+      corners.every((c) => c.x < 0) ||
+      corners.every((c) => c.y < 0) ||
+      corners.every((c) => c.x > t.screen.width) ||
+      corners.every((c) => c.y > t.screen.height)
+    ) {
+      this.leave();
+      return;
+    }
     const on =
-      whole &&
       found.col >= 0 &&
       found.row >= 0 &&
       found.col < board.size &&
