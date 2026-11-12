@@ -6,8 +6,9 @@
  * was aimed at. With the magnifier on, touching the board puts it up across
  * the whole screen, about a hundred cells of it, the cell that was touched
  * under the finger. Sliding pans across it, and lifting plays the cell the
- * finger is on and puts the page back. Lifting with the finger off the board
- * plays nothing, which is the way out of a touch that was not meant.
+ * finger is on and puts the page back. Lifting with the finger off the board,
+ * or on a cell the edge of the screen cuts into, plays nothing, which is the
+ * way out of a touch that was not meant.
  *
  * The close-up is a copy of the drawing, so it is the board exactly as it
  * stands — style, labels, numbers, which way round — and moving over it is a
@@ -91,6 +92,13 @@ export class Magnifier {
     // Either way it outruns the finger, which is what makes the view pan.
     const gain = Math.max(page, zoom / 2);
 
+    // The touched cell starts centred under the finger, so a tap plays it.
+    // Where the finger came down near the screen's edge that cell is cut off
+    // by the edge, which is a cell lifting will not play, so it stays the aim
+    // while the finger is nudged inwards and the view pans it fully on; the
+    // aim follows the finger from there.
+    const touched = this.board.cellAt(at);
+
     const view = svg.viewBox.baseVal;
     const copy = svg.cloneNode(true);
     copy.removeAttribute("role");
@@ -122,8 +130,9 @@ export class Magnifier {
     this.touch = {
       id: finger.identifier,
       from: { x: finger.clientX, y: finger.clientY },
+      settling: true,
       finger: { x: finger.clientX, y: finger.clientY },
-      at: { x: at.x, y: at.y },
+      at: this.board.at(touched.col, touched.row),
       origin: { x: view.x, y: view.y },
       screen,
       zoom,
@@ -175,12 +184,14 @@ export class Magnifier {
   }
 
   /**
-   * Where the aim is: where the finger came down on the board, moved on by
-   * however far it has slid since, held to the board and a little beyond.
+   * Where the aim is: the cell the finger came down on, moved on by however
+   * far it has slid since that cell was wholly on the screen, held to the
+   * board and a little beyond.
    */
   target() {
     const t = this.touch;
     const board = this.board;
+    if (t.settling) return t.at;
     const point = {
       x: t.at.x + (t.finger.x - t.from.x) / t.gain,
       y: t.at.y + (t.finger.y - t.from.y) / t.gain,
@@ -201,16 +212,32 @@ export class Magnifier {
     const y = t.finger.y - t.screen.top - (point.y - t.origin.y) * t.zoom;
     t.copy.style.transform = `translate(${x}px, ${y}px)`;
 
+    // A cell counts only while it is on the board and wholly on the screen:
+    // one the screen cuts into is one the finger has run off the edge for,
+    // and lifting there plays nothing.
     const found = board.cellAt(point);
+    const centre = board.at(found.col, found.row);
+    const whole = board.vertices().every(([vx, vy]) => {
+      const sx = x + (centre.x + vx - t.origin.x) * t.zoom;
+      const sy = y + (centre.y + vy - t.origin.y) * t.zoom;
+      return (
+        sx >= 0 && sy >= 0 && sx <= t.screen.width && sy <= t.screen.height
+      );
+    });
+    if (t.settling && whole) {
+      t.settling = false;
+      t.from = { ...t.finger };
+    }
     const on =
+      whole &&
       found.col >= 0 &&
       found.row >= 0 &&
       found.col < board.size &&
       found.row < board.size;
     t.cell = on ? found : null;
     t.overlay.toggleAttribute("data-off", !on);
+    t.sight.setAttribute("display", on ? "inline" : "none");
     if (on) {
-      const centre = board.at(found.col, found.row);
       t.sight.setAttribute("transform", `translate(${centre.x} ${centre.y})`);
       const what = this.aim(found);
       const stone = what === "red" || what === "blue";

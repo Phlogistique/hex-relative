@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell under the finger, sliding pans, the lift plays the cell under the finger, off the board or a second finger plays nothing, and one tap is one move |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell under the finger, sliding pans, the lift plays the cell under the finger, off the board, a cell the screen's edge cuts into, or a second finger plays nothing, every corner cell can still be had with a nudge, and one tap is one move |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -391,7 +391,15 @@ the board puts a clone of the board's SVG up across the screen at about a
 hundred cells to a screen, the touched point under the finger. The aim moves at
 `max(page scale, zoom / 2)` pixels per unit, slower than the close-up's own
 scale, so it outruns the finger and the view pans; the lift plays the cell
-under the finger and takes the overlay down. `board.cellAt()` is the inverse of
+under the finger and takes the overlay down. A cell counts only while it is on
+the board and every corner of its hexagon is on the screen, so running a finger
+off the edge cancels. That would make a tap near the edge of the screen a
+cancel too, and on a phone the board's outer cells are that near — a 53x53
+corner cell sits a few pixels from it — so the touched cell stays the aim,
+frozen, until the finger has been nudged in far enough to bring it wholly on,
+and the aim follows the finger from there. Freezing one axis at a time was
+tried first: the finger clears the narrow margin first and the aim slides onto
+the neighbouring cell before the other has cleared. `board.cellAt()` is the inverse of
 `at()`, turn included. The touch stays with the real board — touch events go
 to the element the touch started on — and `preventDefault` on `touchstart` is
 what stops a click from playing a second stone behind it. What a tap would do

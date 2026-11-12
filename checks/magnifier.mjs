@@ -4,8 +4,10 @@
  *
  * What it promises, and so what is held down here, is that the cell played is
  * the one the finger is on in the close-up, the one the caption names, and on
- * a tap that has not moved the one that was touched on the page — and that a
- * touch is only ever one move: no click let through behind it to play again.
+ * a tap that has not moved the one that was touched on the page; that a cell
+ * the edge of the screen cuts into is a cancel, and that a corner cell can
+ * still be had with a nudge; and that a touch is only ever one move: no click
+ * let through behind it to play again.
  *
  * Touches are sent through the DevTools protocol, which is the only way to
  * have a finger slide in Playwright; its own touchscreen only taps.
@@ -51,8 +53,9 @@ const onPage = (page, col, row) =>
   );
 
 /**
- * What the close-up shows: which of its cells the finger is on, by the
- * nearest centre, how many cells the screen holds, and the caption.
+ * What the close-up shows: which of its cells the finger is inside, whether
+ * all of that cell is on the screen, how many cells the screen holds, and the
+ * caption.
  */
 const closeUp = (page, x, y) =>
   page.evaluate(
@@ -64,20 +67,42 @@ const closeUp = (page, x, y) =>
       let hex = null;
       [...overlay.querySelectorAll(".cell")].forEach((cell, index) => {
         const box = cell.getBoundingClientRect();
-        const cx = box.x + box.width / 2;
-        const cy = box.y + box.height / 2;
         hex ??= cell.querySelector(".hex").getBoundingClientRect();
-        const d = Math.hypot(cx - x, cy - y);
-        if (!best || d < best.d)
-          best = {
-            d,
-            col: index % size,
-            row: Math.floor(index / size),
-            r: box.width / 2,
-          };
+        const d = Math.hypot(
+          box.x + box.width / 2 - x,
+          box.y + box.height / 2 - y,
+        );
+        if (!best || d < best.d) best = { d, cell, index };
       });
+      // The hexagon itself, on screen: whether the finger is inside its
+      // outline, and whether every corner of it is on the screen. Near the
+      // edge of the board the nearest cell on it may not be the one under the
+      // finger, which may be off the board.
+      const polygon = best.cell.querySelector(".hex");
+      const matrix = polygon.getScreenCTM();
+      const corners = [...polygon.points].map((p) => p.matrixTransform(matrix));
+      const inside = corners.every((a, k) => {
+        const b = corners[(k + 1) % corners.length];
+        const c = corners[(k + 2) % corners.length];
+        const side = (p) =>
+          (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+        return side({ x, y }) * side(c) >= 0;
+      });
+      const whole = corners.every(
+        (p) => p.x >= 0 && p.y >= 0 && p.x <= innerWidth && p.y <= innerHeight,
+      );
+      best = {
+        col: best.index % size,
+        row: Math.floor(best.index / size),
+        inside,
+        whole,
+      };
       return {
-        under: best.d < best.r ? { col: best.col, row: best.row } : null,
+        under: best.inside ? { col: best.col, row: best.row } : null,
+        whole: best.whole,
+        aiming:
+          overlay.querySelector(".magnifier-aim").getAttribute("display") !==
+          "none",
         // How many cells the screen holds, from the size of one: a hexagon
         // covers three quarters of its bounding box.
         shown: Math.round(
@@ -100,6 +125,21 @@ const played = (page) =>
 
 const name = (c) => (c ? standard(c.col, c.row) : "nothing");
 
+/**
+ * The one rule about what lifting would do: a cell is offered, named and
+ * ringed, exactly when the finger is on one that is on the board and wholly
+ * on the screen. Anything the screen cuts into is a cancel.
+ */
+function holds(label, state) {
+  const offered = Boolean(state.under && state.whole);
+  const says = state.caption !== "×";
+  if (offered !== says || offered !== state.aiming)
+    throw new Error(
+      `${label}: on ${name(state.under)}, ${state.whole ? "whole" : "cut"}, ` +
+        `caption ${state.caption}, ring ${state.aiming ? "shown" : "hidden"}`,
+    );
+}
+
 await check("The magnifier", async ({ open }) => {
   for (const [hash, style] of [
     ["#13", "hex"],
@@ -119,6 +159,7 @@ await check("The magnifier", async ({ open }) => {
     await page.waitForTimeout(40);
     const first = await closeUp(page, at.x, at.y);
     if (!first) throw new Error(`${label}: no close-up on touching the board`);
+    holds(label, first);
     console.log(
       `  ${pad(label, 14)}${pad(`${first.shown} cells to a screen`, 22)}touched ${name(aimed)}, under the finger ${name(first.under)}, caption ${first.caption}`,
     );
@@ -151,6 +192,7 @@ await check("The magnifier", async ({ open }) => {
     ]) {
       await touch.move(at.x + dx, at.y + dy);
       path.push(await closeUp(page, at.x + dx, at.y + dy));
+      holds(label, path.at(-1));
     }
     const end = path.at(-1);
     await touch.up();
@@ -173,6 +215,7 @@ await check("The magnifier", async ({ open }) => {
     await touch.down(at.x, at.y);
     await touch.move(at.x, at.y - 2000);
     const off = await closeUp(page, at.x, at.y - 2000);
+    holds(label, off);
     await touch.up();
     await page.waitForTimeout(60);
     after = await played(page);
@@ -188,6 +231,58 @@ await check("The magnifier", async ({ open }) => {
     if (after.overlay || after.hash !== twice)
       throw new Error(`${label}: a second finger left ${after.hash}`);
     console.log(`  ${pad("", 14)}off the board and a second finger: nothing`);
+
+    // Run to the edge of the screen and the cell there is cut off: nothing.
+    const { width } = page.viewportSize();
+    for (const x of [3, width - 3]) {
+      await touch.down(at.x, at.y);
+      await touch.move(x, at.y);
+      const edge = await closeUp(page, x, at.y);
+      holds(label, edge);
+      await touch.up();
+      await page.waitForTimeout(60);
+      after = await played(page);
+      if (edge.caption !== "×" || after.hash !== twice)
+        throw new Error(`${label}: lifting at x=${x} played ${after.hash}`);
+    }
+    console.log(`  ${pad("", 14)}at either edge of the screen: nothing`);
+
+    // Every corner cell can be had: tapped, or where the finger came down too
+    // near the screen's edge for the cell to be whole, nudged inwards.
+    const report = [];
+    for (const corner of [
+      { col: 0, row: 0 },
+      { col: size - 1, row: 0 },
+      { col: 0, row: size - 1 },
+      { col: size - 1, row: size - 1 },
+    ]) {
+      const p = await onPage(page, corner.col, corner.row);
+      const size2 = page.viewportSize();
+      const away = (v, length) => (v < 60 ? 1 : v > length - 60 ? -1 : 0);
+      const dx = away(p.x, size2.width);
+      const dy = away(p.y, size2.height);
+      await touch.down(p.x, p.y);
+      await page.waitForTimeout(40);
+      let state = await closeUp(page, p.x, p.y);
+      holds(label, state);
+      let nudge = 0;
+      while (state.caption === "×" && nudge < 80) {
+        nudge += 4;
+        await touch.move(p.x + dx * nudge, p.y + dy * nudge);
+        state = await closeUp(page, p.x + dx * nudge, p.y + dy * nudge);
+        holds(label, state);
+      }
+      const before = (await played(page)).hash;
+      await touch.up();
+      await page.waitForTimeout(60);
+      after = await played(page);
+      report.push(`${name(corner)}${nudge ? ` (nudged ${nudge}px)` : ""}`);
+      if (after.last !== name(corner) || after.hash === before)
+        throw new Error(
+          `${label}: aimed at the corner ${name(corner)}, played ${after.last}`,
+        );
+    }
+    console.log(`  ${pad("", 14)}corners: ${report.join(", ")}`);
     await page.close();
   }
 
