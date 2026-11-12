@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at any edge, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, the ways on trial each doing what makes them that way, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, and one tap being one move |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at the top or bottom, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, a cell in play with the finger by the glass on a side, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, and one tap being one move |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -410,12 +410,20 @@ and some without, and an overshoot could not be taken back. A second finger
 used to cancel too and now changes nothing. A lift on a `×` leaves the
 close-up up for `FADE`, fading, so it is seen to have done nothing.
 
-Half is about where the cell's centre crosses the edge. `EDGE` is 32px on the
-sides and 12px top and bottom: a finger slid off the side of a phone is last
-reported well short of the glass's edge, the centre of its contact never
-getting there and a quick swipe being last sampled further in still, and at
-12px the sides missed it. A finger that comes *down* inside a margin — a 53x53
-corner cell is 29px from the side — is pressing a cell near that edge, not
+Half is about where the cell's centre crosses the edge. `EDGE` is 12px top
+and bottom and nothing on the sides. On a phone held upright the board's own
+edges are the sides of the screen, so a margin there stood exactly where the
+edge cells are reached from: a finger coming down a cell or two short of the
+side had to slide towards the glass to get there, and ran into the margin's
+`×` first. Four ways round that were put on trial side by side — the slide
+towards a near side sped up to fit before the margin, the press read off a
+board stretched a little smaller than the one drawn, the margin running the aim
+on towards its edge, and no margin on the sides at all — and the last was the
+one kept. The way out on a side is to take the ring off the board. (The sides
+had been 32px for a while, and 12px before that, which missed fingers slid off
+the side: those are last reported well short of the glass.) A finger that
+comes *down* inside a margin — a 53x53 corner cell is 8px from the bottom — is
+pressing a cell near that edge, not
 leaving by it, and two things follow. That edge gives no `×` until the finger
 has been out of its margin and come back. And the finger moves nothing, towards
 that edge or away from it, until it is `DEAD` (16px) clear of the margin: a
@@ -423,27 +431,6 @@ long press wobbles, and one that eases off the edge or presses into it keeps
 the cell it pressed. Before that, a finger landing near the edge got a `×` from
 8px of wobble, and dragging back towards the middle moved the aim off the cell
 it wanted.
-
-**How the edge of the board is reached is on trial**, four ways, picked with
-`?edge=` in the address (`WAYS` in `magnifier.js`); the problem they answer is
-a finger that comes down near the side of the screen, a cell or two short of
-the edge it means, and has to slide towards the glass — into the margin's `×` —
-to get there.
-
-- `accel`, the default: towards each side, the room the finger has before the
-  margin is weighed against the slide the aim needs to leave the board that
-  way and go half a cell past, and a slide that way only is sped up to fit, up
-  to `BOOST` times. With under 24px of room the margin is not worth speeding
-  into: that edge is disarmed for the touch, until the finger has gone 30px
-  past the margin, and the room runs on to the glass. A press still opens on
-  the cell under the finger.
-- `free`: no margin on the sides at all.
-- `scroll`: an armed margin runs the aim on towards its edge, `SCROLL` (six
-  cells a second) at the glass and less the shallower the finger is in, instead
-  of giving a `×`.
-- `stretch`: the press is read off a board a little smaller than the one drawn,
-  stretched out from the middle by `OUTWARD` (20px) at the outermost cells.
-  Tried first and found wanting: a cell short of the edge became a slide away.
 
 Only a press on the drawing opens the close-up, and only within `REACH` (20px)
 of a cell. A press just past the outermost cells, on the coloured edge or the

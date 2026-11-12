@@ -73,9 +73,8 @@ close across the whole screen, about ten cells by ten, with the cell you touched
 of it wherever on the screen you touched. Slide and the ring moves as far as your finger does while
 the board pans under it; lift to play the ringed cell and go back to the whole board. Where there is
 nothing to play — the ring off the board, the ringed cell more than half off the screen, or your
-finger at the edge of the screen — the ring goes and the caption says ×: lifting there plays
-nothing, and moving back brings the ring back. A slide towards a nearby edge of the screen is sped up, so that
-the board's edge comes before your finger reaches the screen's. A press near the edge of the screen keeps the cell it pressed while it
+finger at the top or bottom of the screen — the ring goes and the caption says ×: lifting there plays
+nothing, and moving back brings the ring back. A press near the edge of the screen keeps the cell it pressed while it
 wobbles, and a press just past the board's outermost cells is a press for the
 nearest of them; one in the empty corners of the drawing does not open the magnifier at all.
 

@@ -41,11 +41,10 @@ const CELL_AREA = (3 * Math.sqrt(3)) / 2;
 // on a small board would otherwise be no closer at all.
 const MIN_ZOOM = 1.6;
 // How near each edge of the screen, in pixels, the finger is taken to be on its
-// way off it. A finger slid off the side of a phone is last reported well short of
-// the glass's edge — the centre of its contact never gets there, and a quick
-// swipe is last sampled further in still — so the sides take a wide margin.
-// The top and bottom are left narrow.
-const EDGE = { left: 32, right: 32, top: 12, bottom: 12 };
+// way off it. None on the sides: the finger may go to the glass there, which is
+// where the board's own edge is on a phone held upright, and the way out on
+// that side is to take the ring off the board.
+const EDGE = { left: 0, right: 0, top: 12, bottom: 12 };
 // A finger that comes down inside one of those margins is pressing a cell
 // near that edge, not leaving by it: that edge gives no × until the finger has
 // been out of its margin and come back. And it moves nothing, towards that
@@ -57,29 +56,6 @@ const DEAD = 16;
 // labels. Further out the drawing's corners are empty, and a touch there is
 // the page's — to scroll with, say.
 const REACH = 20;
-// How much further out than the finger a press near an edge of the board
-// counts as, in pixels on the page, at the outermost cells — in the "stretch"
-// way of reaching the edge only.
-const OUTWARD = 20;
-// The "scroll" way: how fast the aim runs on towards an edge while the finger
-// is in that edge's margin, in units of the drawing a second at the margin's
-// outer edge — six cells a second — and less the shallower the finger is in.
-const SCROLL = 6 * Math.sqrt(3);
-// The "accel" way: the most a slide towards a near edge is sped up by.
-const BOOST = 4;
-
-/**
- * The ways of reaching the cells at the edge of the board when the finger is
- * near the edge of the screen, on trial. Picked with `?edge=` in the address.
- *
- * - accel: a slide towards an edge the finger came down near is sped up just
- *   enough that the board's edge, and the × past it, come before the margin.
- * - free: no margin on the sides at all; the finger can go to the glass.
- * - scroll: the finger in a margin runs the aim on towards that edge, faster
- *   the deeper it is, instead of giving a ×.
- * - stretch: a press is read off a board a little smaller than the one drawn.
- */
-export const WAYS = ["accel", "free", "scroll", "stretch"];
 // How long a close-up lifted on a × takes to go, in milliseconds, and the
 // stylesheet's fade is timed to end within it.
 const FADE = 400;
@@ -96,10 +72,8 @@ export class Magnifier {
    * lifting there would do — a colour, "erase", or null for nothing — and
    * `name(cell)` what to call it. `play(cell, event)` is the lift.
    */
-  constructor(board, { enabled, aim, name, play, way = "accel" }) {
+  constructor(board, { enabled, aim, name, play }) {
     this.board = board;
-    this.way = WAYS.includes(way) ? way : "accel";
-    this.margins = this.way === "free" ? { ...EDGE, left: 0, right: 0 } : EDGE;
     this.enabled = enabled;
     this.aim = aim;
     this.name = name;
@@ -146,32 +120,10 @@ export class Magnifier {
     // Further out than that, in the empty corners of the drawing, it is not a
     // press on the board at all, and the page keeps the touch.
     const page = svg.getScreenCTM().a;
-    const nearest = hold(board.cellAt(at));
-    const centre = board.at(nearest.col, nearest.row);
-    if ((Math.hypot(at.x - centre.x, at.y - centre.y) - 1) * page > REACH)
-      return;
-    // The "stretch" way: the cell pressed is read off a board a little
-    // smaller than the one drawn, the press stretched out from the board's
-    // middle by OUTWARD pixels at the outermost cells and by nothing in the
-    // middle.
-    const middle = last / 2;
-    const stretch =
-      this.way !== "stretch"
-        ? 1
-        : 1 +
-          Math.min(0.3, OUTWARD / (page * Math.sqrt(3)) / Math.max(1, middle));
-    const { col, row } = board.locate(at);
-    const touched = hold(
-      board.cellAt(
-        board.turn(
-          center(
-            middle + (col - middle) * stretch,
-            middle + (row - middle) * stretch,
-          ),
-        ),
-      ),
-    );
+    const touched = hold(board.cellAt(at));
     const pressed = board.at(touched.col, touched.row);
+    if ((Math.hypot(at.x - pressed.x, at.y - pressed.y) - 1) * page > REACH)
+      return;
     // No scrolling, and no click once the finger lifts: the lift is ours.
     event.preventDefault();
 
@@ -220,52 +172,17 @@ export class Magnifier {
     caption.className = "magnifier-name";
     overlay.appendChild(caption);
 
-    const margins = this.margins;
     const gap = gaps(finger.clientX, finger.clientY, screen);
-    // The "accel" way: towards each side, how far the finger can slide before
-    // the margin, against how far it would have to for the aim to leave the
-    // board that way and go half a cell past; where the room is short, a slide
-    // that way is sped up to fit. Not towards an edge the finger came down in
-    // the margin of, where it slides for nothing anyway.
-    const boost = { left: 1, right: 1, top: 1, bottom: 1 };
-    const armed = Object.fromEntries(
-      Object.entries(gap).map(([side, g]) => [side, g >= margins[side]]),
-    );
-    // How far from each edge a disarmed finger has to go to arm it again.
-    const rearm = { ...margins };
-    if (this.way === "accel") {
-      const ways = {
-        left: [-1, 0],
-        right: [1, 0],
-        top: [0, -1],
-        bottom: [0, 1],
-      };
-      for (const [side, [dx, dy]] of Object.entries(ways)) {
-        if (gap[side] < margins[side]) continue;
-        let room = gap[side] - margins[side] - 6;
-        // Too little room before the margin to be worth speeding into: that
-        // edge gives no × this time, and the room runs on to the glass.
-        if (room < 24) {
-          armed[side] = false;
-          rearm[side] = margins[side] + 30;
-          room = gap[side] - 6;
-        }
-        const need = (leave(board, pressed, dx, dy) + 0.5) * gain;
-        boost[side] = Math.min(BOOST, Math.max(1, need / Math.max(room, 12)));
-      }
-    }
 
     this.touch = {
       id: finger.identifier,
-      from: still(finger.clientX, finger.clientY, screen, margins),
-      boost,
-      scroll: { x: 0, y: 0 }, // how far the "scroll" way has run the aim on
-      tick: 0,
+      from: still(finger.clientX, finger.clientY, screen),
       finger: { x: finger.clientX, y: finger.clientY },
       // Which edges give a × when the finger is in their margin: not one it
       // came down in, until it has been out.
-      armed,
-      rearm,
+      armed: Object.fromEntries(
+        Object.entries(gap).map(([side, g]) => [side, g >= EDGE[side]]),
+      ),
       at: pressed, // which starts in the middle of the screen
       origin: { x: view.x, y: view.y },
       screen,
@@ -293,23 +210,13 @@ export class Magnifier {
 
   /** Whether the finger is near enough an edge of the screen to be leaving. */
   atEdge(t) {
-    return this.pushing(t).length > 0;
-  }
-
-  /**
-   * The armed edges the finger is in the margin of, each with how deep in it
-   * is, from 0 at the margin's inner edge to 1 at the screen's.
-   */
-  pushing(t) {
     const gap = gaps(t.finger.x, t.finger.y, t.screen);
-    const into = [];
+    let leaving = false;
     for (const side of Object.keys(gap)) {
-      const margin = this.margins[side];
-      if (gap[side] >= t.rearm[side]) t.armed[side] = true;
-      else if (t.armed[side])
-        into.push([side, Math.min(1, 1 - gap[side] / margin)]);
+      if (gap[side] >= EDGE[side]) t.armed[side] = true;
+      else if (t.armed[side]) leaving = true;
     }
-    return into;
+    return leaving;
   }
 
   move(event) {
@@ -371,21 +278,14 @@ export class Magnifier {
   target() {
     const t = this.touch;
     const board = this.board;
-    const sx = slid(t.finger.x, t.from.x);
-    const sy = slid(t.finger.y, t.from.y);
-    const base = {
-      x: t.at.x + (sx * (sx > 0 ? t.boost.right : t.boost.left)) / t.gain,
-      y: t.at.y + (sy * (sy > 0 ? t.boost.bottom : t.boost.top)) / t.gain,
+    const point = {
+      x: t.at.x + slid(t.finger.x, t.from.x) / t.gain,
+      y: t.at.y + slid(t.finger.y, t.from.y) / t.gain,
     };
-    const point = { x: base.x + t.scroll.x, y: base.y + t.scroll.y };
     const { col, row } = board.locate(point);
     const hold = (v) =>
       Math.max(-OVERRUN, Math.min(board.size - 1 + OVERRUN, v));
-    const held = board.turn(center(hold(col), hold(row)));
-    // Run on no further than the aim can go, so that coming back out of the
-    // margin turns straight back.
-    t.scroll = { x: held.x - base.x, y: held.y - base.y };
-    return held;
+    return board.turn(center(hold(col), hold(row)));
   }
 
   /**
@@ -405,26 +305,6 @@ export class Magnifier {
     const t = this.touch;
     if (!t) return;
     const board = this.board;
-    // The "scroll" way: the finger in a margin runs the aim on, frame by
-    // frame, for as long as it stays there.
-    const now = performance.now();
-    const push = this.way === "scroll" ? this.pushing(t) : [];
-    if (push.length) {
-      const dt = t.tick ? Math.min(0.1, (now - t.tick) / 1000) : 0;
-      const step = {
-        left: [-1, 0],
-        right: [1, 0],
-        top: [0, -1],
-        bottom: [0, 1],
-      };
-      for (const [side, depth] of push) {
-        t.scroll.x += step[side][0] * SCROLL * depth * dt;
-        t.scroll.y += step[side][1] * SCROLL * depth * dt;
-      }
-      cancelAnimationFrame(this.frame);
-      this.frame = requestAnimationFrame(() => this.update());
-    }
-    t.tick = push.length ? now : 0;
     const point = this.target();
     const ring = this.sighted();
     const x = ring.x - (point.x - t.origin.x) * t.zoom;
@@ -442,7 +322,7 @@ export class Magnifier {
     }));
     const shown = area(clip(corners, t.screen.width, t.screen.height));
     const on =
-      (this.way === "scroll" || !this.atEdge(t)) &&
+      !this.atEdge(t) &&
       shown >= KEEP * area(corners) &&
       found.col >= 0 &&
       found.row >= 0 &&
@@ -477,13 +357,13 @@ export class Magnifier {
  * pressed harder into the edge or eased off it, it is still pressing the cell
  * it came down on.
  */
-function still(x, y, screen, margins) {
+function still(x, y, screen) {
   const gap = gaps(x, y, screen);
   const span = (v, low, high, lowSide, highSide) => {
-    if (gap[lowSide] < margins[lowSide])
-      return [-Infinity, low + margins[lowSide] + DEAD];
-    if (gap[highSide] < margins[highSide])
-      return [high - margins[highSide] - DEAD, Infinity];
+    if (gap[lowSide] < EDGE[lowSide])
+      return [-Infinity, low + EDGE[lowSide] + DEAD];
+    if (gap[highSide] < EDGE[highSide])
+      return [high - EDGE[highSide] - DEAD, Infinity];
     return [v, v];
   };
   return {
@@ -496,22 +376,6 @@ function still(x, y, screen, margins) {
     nothing. */
 function slid(v, [lo, hi]) {
   return v < lo ? v - lo : v > hi ? v - hi : 0;
-}
-
-/**
- * How far, in units of the drawing, the aim goes from `from` in the direction
- * (dx, dy) on the screen before it leaves the board.
- */
-function leave(board, from, dx, dy) {
-  const last = board.size - 1;
-  for (let s = 0; s < 400; s += 0.05) {
-    const { col, row } = board.cellAt({
-      x: from.x + dx * s,
-      y: from.y + dy * s,
-    });
-    if (col < 0 || row < 0 || col > last || row > last) return s;
-  }
-  return 400;
 }
 
 /** How far a point is from each edge of the screen. */
