@@ -403,9 +403,15 @@ hexagon clipped to the screen), takes the overlay down there and then and plays
 nothing, as does a second finger; the finger is then ignored until it lifts.
 Both ends were tried and refused: cancelling on any cut at all read as the loupe
 giving up on a cell plainly there, and waiting for the cell to leave entirely
-was too late. Half is about where the cell's centre crosses the edge. A finger that comes *down* within `EDGE` has not left by it, which on
-53x53 is a corner cell, so an edge only counts once the finger has been away
-from all of them. The ring off the board but on the screen still shows `×` and
+was too late. Half is about where the cell's centre crosses the edge. `EDGE` is 32px on the sides and 12px top and bottom:
+a finger slid off the side of a phone is last reported well short of the
+glass's edge, the centre of its contact never getting there and a quick swipe
+being last sampled further in still, and at 12px the sides missed it. A finger
+that comes *down* inside the margin — a 53x53 corner cell is 29px from the side
+— has not left by it; it leaves by that edge once it is `NEARER` (8px) closer
+to it than where it came down. "Not until it has been away from every edge"
+was the first rule, and with a wider margin it let a finger put down near the
+side be swiped off the screen and still play. The ring off the board but on the screen still shows `×` and
 plays nothing on lifting. `board.cellAt()` is the inverse of `at()`,
 turn included. The touch stays with the real board — touch events go to the
 element the touch started on — and `preventDefault` on `touchstart` is what

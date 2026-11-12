@@ -337,7 +337,7 @@ await check("The magnifier", async ({ open }) => {
       const states = [];
       for (let d = 0; d < width; d += 4) {
         const to = { x: start.x + d, y: start.y };
-        if (to.x > width - 20) break;
+        if (to.x > width - 40) break; // short of the finger's own margin
         await touch.move(to.x, to.y);
         if (!(await page.$(".magnifier"))) return { states, closed: to };
         const state = await look(start, to);
@@ -394,8 +394,10 @@ await check("The magnifier", async ({ open }) => {
     // same.
     const middle = { x: width / 2, y: height / 2 };
     for (const [edge, end] of [
-      ["left", { x: 3, y: middle.y }],
-      ["right", { x: width - 3, y: middle.y }],
+      // The sides well short of the glass's edge, which a finger slid off
+      // the side of a phone is last reported at.
+      ["left", { x: 25, y: middle.y }],
+      ["right", { x: width - 25, y: middle.y }],
       ["top", { x: middle.x, y: 3 }],
       ["bottom", { x: middle.x, y: height - 3 }],
     ]) {
@@ -421,45 +423,62 @@ await check("The magnifier", async ({ open }) => {
     const twice2 = after.hash;
 
     // The ring off the board, on the screen: nothing on lifting. From a
-    // corner, slid outwards until the board is left behind.
+    // corner, slid outwards until the board is left behind — outwards along
+    // the diagonal, straight up or down, or straight across, whichever leaves
+    // the board before the finger comes too near the edge of the screen.
     {
       const centre = await onPage(
         page,
         Math.floor(size / 2),
         Math.floor(size / 2),
       );
-      let best = null;
-      for (const corner of [
+      let found = null;
+      search: for (const corner of [
         { col: 0, row: 0 },
         { col: size - 1, row: 0 },
         { col: 0, row: size - 1 },
         { col: size - 1, row: size - 1 },
       ]) {
         const p = await onPage(page, corner.col, corner.row);
-        const room = Math.min(p.x, p.y, width - p.x, height - p.y);
-        if (!best || room > best.room) best = { p, room };
+        const dx = p.x - centre.x;
+        const dy = p.y - centre.y;
+        const len = Math.hypot(dx, dy);
+        for (const [ux, uy] of [
+          [dx / len, dy / len],
+          [0, Math.sign(dy)],
+          [Math.sign(dx), 0],
+        ]) {
+          await touch.down(p.x, p.y);
+          let state = null;
+          for (let step = 3; step < 200; step += 3) {
+            const f = { x: p.x + ux * step, y: p.y + uy * step };
+            await touch.move(f.x, f.y);
+            if (!(await page.$(".magnifier"))) break;
+            state = await look(p, f);
+            if (!state.under) break;
+          }
+          const off = state && !state.under && (await page.$(".magnifier"));
+          // Not that way: leave by the edge rather than lift on a cell.
+          if (!off) await touch.move(1, p.y);
+          await touch.up();
+          await page.waitForTimeout(60);
+          after = await played(page);
+          if (after.hash !== twice2)
+            throw new Error(
+              `${label}: lifting off the board played ${after.hash}`,
+            );
+          if (off) {
+            if (state.caption !== "×")
+              throw new Error(
+                `${label}: off the board, the caption says ${state.caption}`,
+              );
+            found = name(corner);
+            break search;
+          }
+        }
       }
-      const { p } = best;
-      const len = Math.hypot(p.x - centre.x, p.y - centre.y);
-      const ux = (p.x - centre.x) / len;
-      const uy = (p.y - centre.y) / len;
-      await touch.down(p.x, p.y);
-      let state = null;
-      for (let step = 3; step < 200; step += 3) {
-        const f = { x: p.x + ux * step, y: p.y + uy * step };
-        await touch.move(f.x, f.y);
-        if (!(await page.$(".magnifier"))) break;
-        state = await look(p, f);
-        if (!state.under) break;
-      }
-      await touch.up();
-      await page.waitForTimeout(60);
-      after = await played(page);
-      if (!state || state.under || state.caption !== "×")
-        throw new Error(`${label}: never saw the ring off the board`);
-      if (after.hash !== twice2)
-        throw new Error(`${label}: lifting off the board played ${after.hash}`);
-      console.log(`  ${pad("", 14)}off the board: ×, nothing`);
+      if (!found) throw new Error(`${label}: never saw the ring off the board`);
+      console.log(`  ${pad("", 14)}off the board from ${found}: ×, nothing`);
     }
     const twice3 = after.hash;
 
@@ -503,6 +522,39 @@ await check("The magnifier", async ({ open }) => {
           `${label}: tapped ${name(corner)}, played ${after.last}`,
         );
     }
+    // A corner inside the sides' margin: the finger came down there, so a
+    // little nearer the edge is still a cell, and a little more is leaving.
+    const inside = [];
+    for (const corner of [
+      { col: 0, row: 0 },
+      { col: size - 1, row: 0 },
+      { col: 0, row: size - 1 },
+      { col: size - 1, row: size - 1 },
+    ]) {
+      const p = await onPage(page, corner.col, corner.row);
+      const side = p.x < width / 2 ? -1 : 1;
+      const gap = side < 0 ? p.x : width - p.x;
+      if (gap >= 32 || gap < 14) continue;
+      await touch.down(p.x, p.y);
+      await touch.move(p.x + side * 4, p.y);
+      const stays = Boolean(await page.$(".magnifier"));
+      await touch.move(p.x + side * 12, p.y);
+      const goes = !(await page.$(".magnifier"));
+      const before = (await played(page)).hash;
+      await touch.up();
+      await page.waitForTimeout(60);
+      after = await played(page);
+      if (!stays || !goes || after.hash !== before)
+        throw new Error(
+          `${label}: ${name(corner)}, ${Math.round(gap)}px from the edge: ` +
+            `4px nearer ${stays ? "stayed" : "left"}, 12px nearer ${goes ? "left" : "stayed"}`,
+        );
+      inside.push(`${name(corner)} (${Math.round(gap)}px)`);
+    }
+    if (inside.length)
+      console.log(
+        `  ${pad("", 14)}came down in the margin at ${inside.join(", ")}: 4px nearer stays, 12px nearer leaves`,
+      );
     console.log(`  ${pad("", 14)}corners: ${corners.join(", ")}`);
     await page.close();
   }

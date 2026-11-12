@@ -38,9 +38,15 @@ const CELL_AREA = (3 * Math.sqrt(3)) / 2;
 // Never less close up than this against the board as the page draws it, which
 // on a small board would otherwise be no closer at all.
 const MIN_ZOOM = 1.6;
-// How near the edge of the screen, in pixels, the finger is taken to have run
-// off it: as near as a finger's reported centre reliably gets.
-const EDGE = 12;
+// How near each edge of the screen, in pixels, the finger is taken to have run
+// off it. A finger slid off the side of a phone is last reported well short of
+// the glass's edge — the centre of its contact never gets there, and a quick
+// swipe is last sampled further in still — so the sides take a wide margin.
+// The top and bottom are left narrow.
+const EDGE = { left: 32, right: 32, top: 12, bottom: 12 };
+// A finger that comes down inside that margin has not left by it: it has to
+// go this much nearer that edge than where it came down.
+const NEARER = 8;
 // How much of the ringed cell's area has to stay on the screen. Less, and the
 // close-up is left: about where the cell's centre crosses the edge.
 const KEEP = 0.5;
@@ -149,9 +155,13 @@ export class Magnifier {
       id: finger.identifier,
       from: { x: finger.clientX, y: finger.clientY },
       finger: { x: finger.clientX, y: finger.clientY },
-      // A finger that came down against an edge has not run off it, so an
-      // edge only counts once the finger has been away from all of them.
-      armed: !this.atEdge(finger.clientX, finger.clientY, screen),
+      // How near each edge the finger has to come to have left by it: the
+      // margin, or for a finger that came down inside it, nearer than that.
+      limits: Object.fromEntries(
+        Object.entries(gaps(finger.clientX, finger.clientY, screen)).map(
+          ([side, gap]) => [side, Math.min(EDGE[side], gap - NEARER)],
+        ),
+      ),
       at: this.board.at(touched.col, touched.row),
       origin: { x: view.x, y: view.y },
       screen,
@@ -177,14 +187,10 @@ export class Magnifier {
     return null;
   }
 
-  /** Whether a finger is near enough an edge of the screen to have left it. */
-  atEdge(x, y, screen) {
-    return (
-      x - screen.left < EDGE ||
-      y - screen.top < EDGE ||
-      screen.right - x < EDGE ||
-      screen.bottom - y < EDGE
-    );
+  /** Whether the finger is near enough an edge of the screen to have left. */
+  atEdge(t) {
+    const gap = gaps(t.finger.x, t.finger.y, t.screen);
+    return Object.keys(gap).some((side) => gap[side] < t.limits[side]);
   }
 
   /** Whether an event is about a finger that has already left by an edge. */
@@ -275,13 +281,9 @@ export class Magnifier {
     const t = this.touch;
     if (!t) return;
     const board = this.board;
-    if (this.atEdge(t.finger.x, t.finger.y, t.screen)) {
-      if (t.armed) {
-        this.leave();
-        return;
-      }
-    } else {
-      t.armed = true;
+    if (this.atEdge(t)) {
+      this.leave();
+      return;
     }
     const point = this.target();
     const ring = this.sighted();
@@ -327,6 +329,16 @@ export class Magnifier {
     // Out of the ring's way: at the top, unless that is where the ring is.
     t.overlay.toggleAttribute("data-low", ring.y < t.screen.height / 3);
   }
+}
+
+/** How far a point is from each edge of the screen. */
+function gaps(x, y, screen) {
+  return {
+    left: x - screen.left,
+    right: screen.right - x,
+    top: y - screen.top,
+    bottom: screen.bottom - y,
+  };
 }
 
 /** The area of a polygon, by the shoelace. */
