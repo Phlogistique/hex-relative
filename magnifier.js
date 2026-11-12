@@ -46,9 +46,17 @@ const MIN_ZOOM = 1.6;
 // swipe is last sampled further in still — so the sides take a wide margin.
 // The top and bottom are left narrow.
 const EDGE = { left: 32, right: 32, top: 12, bottom: 12 };
-// A finger that comes down inside that margin is not on its way off by it: it
-// has to go this much nearer that edge than where it came down.
-const NEARER = 8;
+// A finger that comes down inside one of those margins is pressing a cell
+// near that edge, not leaving by it: that edge gives no × until the finger has
+// been out of its margin and come back. And it moves nothing, towards that
+// edge or away from it, until it is this many pixels clear of the margin, so
+// that a press that wobbles, or eases off the edge, keeps the cell it pressed.
+const DEAD = 16;
+// How far past the outermost cells, in pixels on the page, a press still
+// counts as one on the board: about the coloured edge and the first line of
+// labels. Further out the drawing's corners are empty, and a touch there is
+// the page's — to scroll with, say.
+const REACH = 20;
 // How long a close-up lifted on a × takes to go, in milliseconds, and the
 // stylesheet's fade is timed to end within it.
 const FADE = 400;
@@ -93,25 +101,38 @@ export class Magnifier {
     this.close();
     this.fading?.remove();
     this.fading = null;
-    // The board's container rather than the drawing, which is redrawn.
-    if (!this.enabled() || !this.board.container.contains(event.target)) return;
+    // On the drawing itself: not the names standing in its corner, which are
+    // a field to type in, nor the card's padding around it.
     const svg = this.board.svg;
-    if (!svg) return;
-    // No scrolling, and no click once the finger lifts: the lift is ours.
-    event.preventDefault();
+    if (!this.enabled() || !svg?.contains(event.target)) return;
     const finger = event.changedTouches[0];
     const toDrawing = svg.getScreenCTM().inverse();
     const at = new DOMPoint(finger.clientX, finger.clientY).matrixTransform(
       toDrawing,
     );
+    // The cell pressed, held to the board: a press just past the last row or
+    // column, on the coloured edge or the labels, is a press for the cell
+    // nearest it. Further out than that, in the empty corners of the drawing,
+    // it is not a press on the board at all, and the page keeps the touch.
+    const last = this.board.size - 1;
+    const near = this.board.cellAt(at);
+    const touched = {
+      col: Math.max(0, Math.min(last, near.col)),
+      row: Math.max(0, Math.min(last, near.row)),
+    };
+    const pressed = this.board.at(touched.col, touched.row);
+    const page = svg.getScreenCTM().a;
+    const beyond = Math.hypot(at.x - pressed.x, at.y - pressed.y) - 1;
+    if (beyond * page > REACH) return;
+    // No scrolling, and no click once the finger lifts: the lift is ours.
+    event.preventDefault();
 
     const overlay = document.createElement("div");
     overlay.className = "magnifier";
     document.body.appendChild(overlay);
     const screen = overlay.getBoundingClientRect();
 
-    // Pixels per unit of the drawing: on the page, and close up.
-    const page = svg.getScreenCTM().a;
+    // Pixels per unit of the drawing, close up; `page` is the same on the page.
     const zoom = Math.max(
       Math.sqrt((screen.width * screen.height) / (CELLS_IN_VIEW * CELL_AREA)),
       page * MIN_ZOOM,
@@ -122,9 +143,6 @@ export class Magnifier {
     // held to at least half the close-up's, a cell for every cell and a half.
     // Either way it outruns the finger, which is what makes the view pan.
     const gain = Math.max(page, zoom / 2);
-
-    // The touched cell, which starts in the middle of the screen.
-    const touched = this.board.cellAt(at);
 
     const view = svg.viewBox.baseVal;
     const copy = svg.cloneNode(true);
@@ -156,16 +174,16 @@ export class Magnifier {
 
     this.touch = {
       id: finger.identifier,
-      from: { x: finger.clientX, y: finger.clientY },
+      from: still(finger.clientX, finger.clientY, screen),
       finger: { x: finger.clientX, y: finger.clientY },
-      // How near each edge the finger has to come to have left by it: the
-      // margin, or for a finger that came down inside it, nearer than that.
-      limits: Object.fromEntries(
+      // Which edges give a × when the finger is in their margin: not one it
+      // came down in, until it has been out.
+      armed: Object.fromEntries(
         Object.entries(gaps(finger.clientX, finger.clientY, screen)).map(
-          ([side, gap]) => [side, Math.min(EDGE[side], gap - NEARER)],
+          ([side, gap]) => [side, gap >= EDGE[side]],
         ),
       ),
-      at: this.board.at(touched.col, touched.row),
+      at: pressed, // which starts in the middle of the screen
       origin: { x: view.x, y: view.y },
       screen,
       zoom,
@@ -193,7 +211,12 @@ export class Magnifier {
   /** Whether the finger is near enough an edge of the screen to be leaving. */
   atEdge(t) {
     const gap = gaps(t.finger.x, t.finger.y, t.screen);
-    return Object.keys(gap).some((side) => gap[side] < t.limits[side]);
+    let leaving = false;
+    for (const side of Object.keys(gap)) {
+      if (gap[side] >= EDGE[side]) t.armed[side] = true;
+      else if (t.armed[side]) leaving = true;
+    }
+    return leaving;
   }
 
   move(event) {
@@ -249,14 +272,15 @@ export class Magnifier {
 
   /**
    * Where the aim is: the cell the finger came down on, moved on by however
-   * far it has slid since, held to the board and a little beyond.
+   * far it has slid since — not counting a slide out of the margin it came
+   * down in — held to the board and a little beyond.
    */
   target() {
     const t = this.touch;
     const board = this.board;
     const point = {
-      x: t.at.x + (t.finger.x - t.from.x) / t.gain,
-      y: t.at.y + (t.finger.y - t.from.y) / t.gain,
+      x: t.at.x + slid(t.finger.x, t.from.x) / t.gain,
+      y: t.at.y + slid(t.finger.y, t.from.y) / t.gain,
     };
     const { col, row } = board.locate(point);
     const hold = (v) =>
@@ -266,13 +290,13 @@ export class Magnifier {
 
   /**
    * Where the ring is on the screen: the middle, moved as far as the finger
-   * has moved. In the overlay's own coordinates.
+   * has slid, counted the same way. In the overlay's own coordinates.
    */
   sighted() {
     const t = this.touch;
     return {
-      x: t.screen.width / 2 + t.finger.x - t.from.x,
-      y: t.screen.height / 2 + t.finger.y - t.from.y,
+      x: t.screen.width / 2 + slid(t.finger.x, t.from.x),
+      y: t.screen.height / 2 + slid(t.finger.y, t.from.y),
     };
   }
 
@@ -324,6 +348,34 @@ export class Magnifier {
     // Out of the ring's way: at the top, unless that is where the ring is.
     t.overlay.toggleAttribute("data-low", ring.y < t.screen.height / 3);
   }
+}
+
+/**
+ * Where a finger came down, as a span along each axis that it can slide
+ * across for nothing: the point itself, or for a finger that came down in an
+ * edge's margin, everything from that edge to `DEAD` clear of the margin —
+ * pressed harder into the edge or eased off it, it is still pressing the cell
+ * it came down on.
+ */
+function still(x, y, screen) {
+  const gap = gaps(x, y, screen);
+  const span = (v, low, high, lowSide, highSide) => {
+    if (gap[lowSide] < EDGE[lowSide])
+      return [-Infinity, low + EDGE[lowSide] + DEAD];
+    if (gap[highSide] < EDGE[highSide])
+      return [high - EDGE[highSide] - DEAD, Infinity];
+    return [v, v];
+  };
+  return {
+    x: span(x, screen.left, screen.right, "left", "right"),
+    y: span(y, screen.top, screen.bottom, "top", "bottom"),
+  };
+}
+
+/** How far a finger has slid along one axis, past the span it may cross for
+    nothing. */
+function slid(v, [lo, hi]) {
+  return v < lo ? v - lo : v > hi ? v - hi : 0;
 }
 
 /** How far a point is from each edge of the screen. */

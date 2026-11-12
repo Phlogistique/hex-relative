@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at any edge, moving back resuming, a lift on a × playing nothing, a second finger changing nothing, and one tap being one move |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at any edge, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, and one tap being one move |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -414,9 +414,24 @@ Half is about where the cell's centre crosses the edge. `EDGE` is 32px on the
 sides and 12px top and bottom: a finger slid off the side of a phone is last
 reported well short of the glass's edge, the centre of its contact never
 getting there and a quick swipe being last sampled further in still, and at
-12px the sides missed it. A finger that comes *down* inside the margin — a
-53x53 corner cell is 29px from the side — is not on its way off by it until it
-is `NEARER` (8px) closer to that edge than where it came down.
+12px the sides missed it. A finger that comes *down* inside a margin — a 53x53
+corner cell is 29px from the side — is pressing a cell near that edge, not
+leaving by it, and two things follow. That edge gives no `×` until the finger
+has been out of its margin and come back. And the finger moves nothing, towards
+that edge or away from it, until it is `DEAD` (16px) clear of the margin: a
+long press wobbles, and one that eases off the edge or presses into it keeps
+the cell it pressed. Before that, a finger landing near the edge got a `×` from
+8px of wobble, and dragging back towards the middle moved the aim off the cell
+it wanted.
+
+Only a press on the drawing opens the close-up, and only within `REACH` (20px)
+of a cell. A press just past the outermost cells, on the coloured edge or the
+first labels, is held to the nearest cell rather than opening on the edge with
+a `×`; further out, in the drawing's empty corners, the page keeps the touch,
+to scroll with. The names that stand in the drawing's corner are inside the
+board's card, and before this a tap on the coordinate field opened the
+close-up.
+
 `board.cellAt()` is the inverse of `at()`,
 turn included. The touch stays with the real board — touch events go to the
 element the touch started on — and `preventDefault` on `touchstart` is what

@@ -74,7 +74,9 @@ of it wherever on the screen you touched. Slide and the ring moves as far as you
 the board pans under it; lift to play the ringed cell and go back to the whole board. Where there is
 nothing to play — the ring off the board, the ringed cell more than half off the screen, or your
 finger at the edge of the screen — the ring goes and the caption says ×: lifting there plays
-nothing, and moving back brings the ring back.
+nothing, and moving back brings the ring back. A press near the edge of the screen keeps the cell it
+pressed while it wobbles, and a press just past the board's outermost cells is a press for the
+nearest of them; one in the empty corners of the drawing does not open the magnifier at all.
 
 A pass and a swap are moves like any other and keep their place in that list. The swap is the pie
 rule as hexworld records it: the board is reflected across its long diagonal and every stone changes
