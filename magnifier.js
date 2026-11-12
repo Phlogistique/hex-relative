@@ -10,8 +10,8 @@
  * back.
  *
  * Every edge of the screen is a way out: the finger run to one, or the ringed
- * cell run wholly off one, puts the page back there and then and plays
- * nothing. A cell the edge only cuts into is still in play. Lifting with the
+ * cell run more than half off the screen, puts the page back there and then
+ * and plays nothing. A cell the edge only cuts a little of is still in play. Lifting with the
  * ring off the board, on the screen, plays nothing too.
  *
  * The ring starts in the middle of the screen whichever part of the screen
@@ -41,6 +41,9 @@ const MIN_ZOOM = 1.6;
 // How near the edge of the screen, in pixels, the finger is taken to have run
 // off it: as near as a finger's reported centre reliably gets.
 const EDGE = 12;
+// How much of the ringed cell's area has to stay on the screen. Less, and the
+// close-up is left: about where the cell's centre crosses the edge.
+const KEEP = 0.5;
 // How far the aim may run past the board, in cells, before it stops: far
 // enough to leave the board and cancel, near enough to come straight back.
 const OVERRUN = 1.5;
@@ -286,20 +289,16 @@ export class Magnifier {
     const y = ring.y - (point.y - t.origin.y) * t.zoom;
     t.copy.style.transform = `translate(${x}px, ${y}px)`;
 
-    // The ringed cell run wholly off the screen is the other way out; one the
-    // edge only cuts into is still in play.
+    // The ringed cell run more than half off the screen is the other way
+    // out; one the edge only cuts a little of is still in play.
     const found = board.cellAt(point);
     const centre = board.at(found.col, found.row);
     const corners = board.vertices().map(([vx, vy]) => ({
       x: x + (centre.x + vx - t.origin.x) * t.zoom,
       y: y + (centre.y + vy - t.origin.y) * t.zoom,
     }));
-    if (
-      corners.every((c) => c.x < 0) ||
-      corners.every((c) => c.y < 0) ||
-      corners.every((c) => c.x > t.screen.width) ||
-      corners.every((c) => c.y > t.screen.height)
-    ) {
+    const shown = area(clip(corners, t.screen.width, t.screen.height));
+    if (shown < KEEP * area(corners)) {
       this.leave();
       return;
     }
@@ -328,4 +327,44 @@ export class Magnifier {
     // Out of the ring's way: at the top, unless that is where the ring is.
     t.overlay.toggleAttribute("data-low", ring.y < t.screen.height / 3);
   }
+}
+
+/** The area of a polygon, by the shoelace. */
+function area(points) {
+  let twice = 0;
+  points.forEach((a, k) => {
+    const b = points[(k + 1) % points.length];
+    twice += a.x * b.y - b.x * a.y;
+  });
+  return Math.abs(twice) / 2;
+}
+
+/**
+ * The part of a convex polygon inside the box from 0,0 to width,height:
+ * clipped against each of the box's four sides in turn.
+ */
+function clip(points, width, height) {
+  const sides = [
+    [(p) => p.x >= 0, (a, b) => cross(a, b, "x", 0)],
+    [(p) => p.y >= 0, (a, b) => cross(a, b, "y", 0)],
+    [(p) => p.x <= width, (a, b) => cross(a, b, "x", width)],
+    [(p) => p.y <= height, (a, b) => cross(a, b, "y", height)],
+  ];
+  for (const [inside, meet] of sides) {
+    const kept = [];
+    points.forEach((a, k) => {
+      const b = points[(k + 1) % points.length];
+      if (inside(a)) kept.push(a);
+      if (inside(a) !== inside(b)) kept.push(meet(a, b));
+    });
+    points = kept;
+    if (!points.length) break;
+  }
+  return points;
+}
+
+/** Where the segment from a to b crosses the line where `axis` is `at`. */
+function cross(a, b, axis, at) {
+  const t = (at - a[axis]) / (b[axis] - a[axis]);
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }

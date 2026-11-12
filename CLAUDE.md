@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, the finger at any edge or the cell wholly off the screen closing it at once, the ring off the board or a second finger playing nothing, and one tap being one move |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, the finger at any edge or the cell less than half on the screen closing it at once, the ring off the board or a second finger playing nothing, and one tap being one move |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -398,11 +398,12 @@ pixels per unit, slower than the close-up's own scale, so it outruns the ring
 and the view pans. The lift plays the ringed cell and takes the overlay down.
 
 Every edge of the screen is a way out: the finger brought within `EDGE` of one,
-or the ringed cell run wholly off one, takes the overlay down there and then and
-plays nothing, as does a second finger; the finger is then ignored until it
-lifts. A cell the edge only cuts into is still in play — cancelling on that was
-the first rule, and it read as the loupe giving up on a cell that was plainly
-there. A finger that comes *down* within `EDGE` has not left by it, which on
+or the ringed cell run more than half off the screen (`KEEP`, by area, the
+hexagon clipped to the screen), takes the overlay down there and then and plays
+nothing, as does a second finger; the finger is then ignored until it lifts.
+Both ends were tried and refused: cancelling on any cut at all read as the loupe
+giving up on a cell plainly there, and waiting for the cell to leave entirely
+was too late. Half is about where the cell's centre crosses the edge. A finger that comes *down* within `EDGE` has not left by it, which on
 53x53 is a corner cell, so an edge only counts once the finger has been away
 from all of them. The ring off the board but on the screen still shows `×` and
 plays nothing on lifting. `board.cellAt()` is the inverse of `at()`,

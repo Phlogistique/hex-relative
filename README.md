@@ -72,7 +72,7 @@ On a touch screen the magnifier is on unless its box is unticked: touching the b
 close across the whole screen, about ten cells by ten, with the cell you touched ringed in the middle
 of it wherever on the screen you touched. Slide and the ring moves as far as your finger does while
 the board pans under it; lift to play the ringed cell and go back to the whole board. Every edge
-of the screen is a way out: run your finger to one, or the ringed cell wholly off one, and the
+of the screen is a way out: run your finger to one, or the ringed cell more than half off one, and the
 whole board is back at once with nothing played. Putting a second finger down does the same, and
 lifting with the ring off the board plays nothing.
 
