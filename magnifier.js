@@ -9,10 +9,12 @@
  * pans the board under it, and lifting plays the ringed cell and puts the page
  * back.
  *
- * Every edge of the screen is a way out: the finger run to one, or the ringed
- * cell run more than half off the screen, puts the page back there and then
- * and plays nothing. A cell the edge only cuts a little of is still in play. Lifting with the
- * ring off the board, on the screen, plays nothing too.
+ * Lifting plays nothing — and the caption says × beforehand, the ring gone —
+ * wherever there is no cell to play: the ring off the board, the ringed cell
+ * more than half off the screen, or the finger run to an edge of the screen.
+ * None of them closes anything by itself: move back and the ring is back, and
+ * one rule covers them all, that a × means lifting there plays nothing. A
+ * cell the edge only cuts a little of is still in play.
  *
  * The ring starts in the middle of the screen whichever part of the screen
  * the finger came down on, and not under the finger: a finger near the edge
@@ -38,23 +40,23 @@ const CELL_AREA = (3 * Math.sqrt(3)) / 2;
 // Never less close up than this against the board as the page draws it, which
 // on a small board would otherwise be no closer at all.
 const MIN_ZOOM = 1.6;
-// How near each edge of the screen, in pixels, the finger is taken to have run
-// off it. A finger slid off the side of a phone is last reported well short of
+// How near each edge of the screen, in pixels, the finger is taken to be on its
+// way off it. A finger slid off the side of a phone is last reported well short of
 // the glass's edge — the centre of its contact never gets there, and a quick
 // swipe is last sampled further in still — so the sides take a wide margin.
 // The top and bottom are left narrow.
 const EDGE = { left: 32, right: 32, top: 12, bottom: 12 };
-// A finger that comes down inside that margin has not left by it: it has to
-// go this much nearer that edge than where it came down.
+// A finger that comes down inside that margin is not on its way off by it: it
+// has to go this much nearer that edge than where it came down.
 const NEARER = 8;
-// How long a cancelled close-up takes to go, in milliseconds: long enough to
-// read the × in it, and the stylesheet's fade is timed to end within it.
+// How long a close-up lifted on a × takes to go, in milliseconds, and the
+// stylesheet's fade is timed to end within it.
 const FADE = 400;
-// How much of the ringed cell's area has to stay on the screen. Less, and the
-// close-up is left: about where the cell's centre crosses the edge.
+// How much of the ringed cell's area has to stay on the screen for it to be in
+// play: about where the cell's centre crosses the edge.
 const KEEP = 0.5;
 // How far the aim may run past the board, in cells, before it stops: far
-// enough to leave the board and cancel, near enough to come straight back.
+// enough to leave the board, near enough to come straight back.
 const OVERRUN = 1.5;
 
 export class Magnifier {
@@ -70,11 +72,10 @@ export class Magnifier {
     this.name = name;
     this.play = play;
     this.touch = null;
-    this.gone = null; // a finger that has left by an edge, until it lifts
     this.fading = null; // a cancelled close-up on its way out
     this.frame = 0;
     // On the window, so that a second finger is seen wherever it lands — on
-    // the close-up, usually, which covers the board.
+    // the close-up, usually, which covers the board — and ignored.
     addEventListener("touchstart", (e) => this.start(e), { passive: false });
     addEventListener("touchmove", (e) => this.move(e), { passive: false });
     addEventListener("touchend", (e) => this.end(e, true));
@@ -83,11 +84,8 @@ export class Magnifier {
 
   start(event) {
     if (event.touches.length > 1) {
-      // A second finger: take it as a change of mind.
-      if (this.touch || this.gone !== null) {
-        this.leave();
-        event.preventDefault();
-      }
+      // A second finger changes nothing; it only must not zoom the page.
+      if (this.touch) event.preventDefault();
       return;
     }
     // The only finger on the screen, so anything still held about an earlier
@@ -95,7 +93,6 @@ export class Magnifier {
     this.close();
     this.fading?.remove();
     this.fading = null;
-    this.gone = null;
     // The board's container rather than the drawing, which is redrawn.
     if (!this.enabled() || !this.board.container.contains(event.target)) return;
     const svg = this.board.svg;
@@ -193,22 +190,13 @@ export class Magnifier {
     return null;
   }
 
-  /** Whether the finger is near enough an edge of the screen to have left. */
+  /** Whether the finger is near enough an edge of the screen to be leaving. */
   atEdge(t) {
     const gap = gaps(t.finger.x, t.finger.y, t.screen);
     return Object.keys(gap).some((side) => gap[side] < t.limits[side]);
   }
 
-  /** Whether an event is about a finger that has already left by an edge. */
-  after(event) {
-    for (const t of event.changedTouches) {
-      if (t.identifier === this.gone) return true;
-    }
-    return false;
-  }
-
   move(event) {
-    if (this.after(event)) event.preventDefault();
     const finger = this.ours(event);
     if (!finger) return;
     event.preventDefault();
@@ -218,20 +206,11 @@ export class Magnifier {
   }
 
   end(event, lifted) {
-    if (this.after(event)) {
-      event.preventDefault();
-      this.gone = null;
-      return;
-    }
     const finger = this.ours(event);
     if (!finger) return;
     event.preventDefault();
     this.touch.finger = { x: finger.clientX, y: finger.clientY };
     this.update();
-    if (!this.touch) {
-      this.gone = null; // it left by an edge on the way, and has now lifted
-      return;
-    }
     const { cell } = this.touch;
     const played = lifted && cell;
     this.close(!played);
@@ -240,9 +219,8 @@ export class Magnifier {
 
   /**
    * Take the close-up down. A play is answered by the stone on the board, so
-   * it goes at once; a cancel, whatever caused it, says so the same way every
-   * time — the ring gone, the caption a ×, and the close-up fading out from
-   * there — so that no way of leaving is silent.
+   * it goes at once; a lift that plays nothing leaves the × it was showing up
+   * a moment, fading, so that the lift is seen to have done nothing.
    */
   close(cancelled = false) {
     cancelAnimationFrame(this.frame);
@@ -267,16 +245,6 @@ export class Magnifier {
       t.overlay.remove();
       if (this.fading === t.overlay) this.fading = null;
     }, FADE);
-  }
-
-  /**
-   * Put the page back and play nothing, and pay no more attention to this
-   * finger until it lifts — except to keep it from scrolling the page or
-   * clicking what it lifts over.
-   */
-  leave() {
-    this.gone = this.touch?.id ?? this.gone;
-    this.close(true);
   }
 
   /**
@@ -313,18 +281,15 @@ export class Magnifier {
     const t = this.touch;
     if (!t) return;
     const board = this.board;
-    if (this.atEdge(t)) {
-      this.leave();
-      return;
-    }
     const point = this.target();
     const ring = this.sighted();
     const x = ring.x - (point.x - t.origin.x) * t.zoom;
     const y = ring.y - (point.y - t.origin.y) * t.zoom;
     t.copy.style.transform = `translate(${x}px, ${y}px)`;
 
-    // The ringed cell run more than half off the screen is the other way
-    // out; one the edge only cuts a little of is still in play.
+    // Nothing to play with the ring off the board, the ringed cell more than
+    // half off the screen, or the finger on its way off it; a cell the edge
+    // only cuts a little of is still in play.
     const found = board.cellAt(point);
     const centre = board.at(found.col, found.row);
     const corners = board.vertices().map(([vx, vy]) => ({
@@ -332,11 +297,9 @@ export class Magnifier {
       y: y + (centre.y + vy - t.origin.y) * t.zoom,
     }));
     const shown = area(clip(corners, t.screen.width, t.screen.height));
-    if (shown < KEEP * area(corners)) {
-      this.leave();
-      return;
-    }
     const on =
+      !this.atEdge(t) &&
+      shown >= KEEP * area(corners) &&
       found.col >= 0 &&
       found.row >= 0 &&
       found.col < board.size &&

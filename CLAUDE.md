@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, the finger at any edge or the cell less than half on the screen closing it at once, the ring off the board or a second finger playing nothing, and one tap being one move |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at any edge, moving back resuming, a lift on a × playing nothing, a second finger changing nothing, and one tap being one move |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -397,26 +397,27 @@ finger does, while the aim moves over the board at `max(page scale, zoom / 2)`
 pixels per unit, slower than the close-up's own scale, so it outruns the ring
 and the view pans. The lift plays the ringed cell and takes the overlay down.
 
-Every edge of the screen is a way out: the finger brought within `EDGE` of one,
-or the ringed cell run more than half off the screen (`KEEP`, by area, the
-hexagon clipped to the screen), takes the overlay down there and then and plays
-nothing, as does a second finger; the finger is then ignored until it lifts.
-Both ends were tried and refused: cancelling on any cut at all read as the loupe
-giving up on a cell plainly there, and waiting for the cell to leave entirely
-was too late. Half is about where the cell's centre crosses the edge. `EDGE` is 32px on the sides and 12px top and bottom:
-a finger slid off the side of a phone is last reported well short of the
-glass's edge, the centre of its contact never getting there and a quick swipe
-being last sampled further in still, and at 12px the sides missed it. A finger
-that comes *down* inside the margin — a 53x53 corner cell is 29px from the side
-— has not left by it; it leaves by that edge once it is `NEARER` (8px) closer
-to it than where it came down. "Not until it has been away from every edge"
-was the first rule, and with a wider margin it let a finger put down near the
-side be swiped off the screen and still play. The ring off the board but on the screen still shows `×` and
-plays nothing on lifting. Every cancel then ends the same way, whatever caused
-it: the close-up is left up for `FADE` with its ring gone and `×` for its
-caption, fading out, where the edges used to close it without a word and only
-the lift off the board said anything — which read as some ways out having a ×
-and some not. `board.cellAt()` is the inverse of `at()`,
+Lifting plays nothing wherever there is no cell to play, and the caption says
+`×` beforehand, the ring gone: the ring off the board, the ringed cell less than
+half on the screen (`KEEP`, by area, the hexagon clipped to the screen), or the
+finger within `EDGE` of an edge of the screen. None of them closes anything by
+itself — move back and the ring is back — so one rule covers them all: a `×`
+means lifting there plays nothing. That is the third design, and both before it
+were refused. Cancelling on any cut of the cell read as the loupe giving up on a
+cell plainly there; closing the close-up the moment an edge was reached, while
+the ring off the board showed a `×` and waited, left some ways out with a `×`
+and some without, and an overshoot could not be taken back. A second finger
+used to cancel too and now changes nothing. A lift on a `×` leaves the
+close-up up for `FADE`, fading, so it is seen to have done nothing.
+
+Half is about where the cell's centre crosses the edge. `EDGE` is 32px on the
+sides and 12px top and bottom: a finger slid off the side of a phone is last
+reported well short of the glass's edge, the centre of its contact never
+getting there and a quick swipe being last sampled further in still, and at
+12px the sides missed it. A finger that comes *down* inside the margin — a
+53x53 corner cell is 29px from the side — is not on its way off by it until it
+is `NEARER` (8px) closer to that edge than where it came down.
+`board.cellAt()` is the inverse of `at()`,
 turn included. The touch stays with the real board — touch events go to the
 element the touch started on — and `preventDefault` on `touchstart` is what
 stops a click from playing a second stone behind it. What a tap would do is
