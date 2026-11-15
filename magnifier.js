@@ -30,8 +30,12 @@
  * nothing moves until the finger has been brought to the ring in the middle
  * of the screen, a dotted line from the finger to it saying so. From there the
  * ring is under the finger and goes where it goes, the board panning as
- * before. A lift on the way in plays the cell that was touched, so a tap is
- * still a move.
+ * before. Nothing is in play until then, so a lift on the way in, or a tap,
+ * plays nothing; and since the finger always starts from the middle, the sides
+ * of the screen get wide margins back. Where lifting would play nothing the
+ * caption is not a × but the cell's name, greyed on a muted red, the ring
+ * greyed with it; only with the ring off the board, where there is no name,
+ * does the × stay, on the same muted red.
  *
  * Mouse and pen are left alone. This is only for touch.
  */
@@ -52,6 +56,9 @@ const MIN_ZOOM = 1.6;
 // where the board's own edge is on a phone held upright, and the way out on
 // that side is to take the ring off the board.
 const EDGE = { left: 0, right: 0, top: 12, bottom: 12 };
+// On trial (`?magnifier=join`) the finger starts every slide from the middle
+// of the screen, so the sides can have their margins back, and wide ones.
+const JOIN_EDGE = { left: 40, right: 40, top: 12, bottom: 12 };
 // A finger that comes down inside one of those margins is pressing a cell
 // near that edge, not leaving by it: that edge gives no × until the finger has
 // been out of its margin and come back. And it moves nothing, towards that
@@ -87,6 +94,7 @@ export class Magnifier {
     // "centre", the ring moving with the finger from wherever it came down,
     // or "join", on trial, the finger brought to the ring first.
     this.join = way === "join";
+    this.edge = this.join ? JOIN_EDGE : EDGE;
     this.enabled = enabled;
     this.aim = aim;
     this.name = name;
@@ -142,6 +150,7 @@ export class Magnifier {
 
     const overlay = document.createElement("div");
     overlay.className = "magnifier";
+    overlay.toggleAttribute("data-join", this.join);
     document.body.appendChild(overlay);
     const screen = overlay.getBoundingClientRect();
 
@@ -211,7 +220,7 @@ export class Magnifier {
       // Which edges give a × when the finger is in their margin: not one it
       // came down in, until it has been out.
       armed: Object.fromEntries(
-        Object.entries(gap).map(([side, g]) => [side, g >= EDGE[side]]),
+        Object.entries(gap).map(([side, g]) => [side, g >= this.edge[side]]),
       ),
       at: pressed, // which starts in the middle of the screen
       origin: { x: view.x, y: view.y },
@@ -249,7 +258,7 @@ export class Magnifier {
     const gap = gaps(t.finger.x, t.finger.y, t.screen);
     let leaving = false;
     for (const side of Object.keys(gap)) {
-      if (gap[side] >= EDGE[side]) t.armed[side] = true;
+      if (gap[side] >= this.edge[side]) t.armed[side] = true;
       else if (t.armed[side]) leaving = true;
     }
     return leaving;
@@ -319,8 +328,12 @@ export class Magnifier {
       t.overlay.remove();
       return;
     }
-    t.caption.textContent = "×";
-    t.sight.setAttribute("display", "none");
+    // On trial, what the close-up was showing already says that lifting there
+    // plays nothing, and stays as it is while it fades.
+    if (!this.join) {
+      t.caption.textContent = "×";
+      t.sight.setAttribute("display", "none");
+    }
     t.hint?.setAttribute("display", "none");
     t.overlay.toggleAttribute("data-off", true);
     t.overlay.toggleAttribute("data-cancelled", true);
@@ -397,20 +410,25 @@ export class Magnifier {
       y: y + (centre.y + vy - t.origin.y) * t.zoom,
     }));
     const shown = area(clip(corners, t.screen.width, t.screen.height));
-    const on =
-      !this.atEdge(t) &&
-      shown >= KEEP * area(corners) &&
+    const leaving = this.atEdge(t);
+    const onBoard =
       found.col >= 0 &&
       found.row >= 0 &&
       found.col < board.size &&
       found.row < board.size;
+    // On trial, nothing is in play until the finger has reached the middle.
+    const on =
+      !leaving && shown >= KEEP * area(corners) && onBoard && !!t.joined;
     t.cell = on ? found : null;
     t.overlay.toggleAttribute("data-off", !on);
-    t.sight.setAttribute("display", on ? "inline" : "none");
-    if (on) {
+    // Where lifting plays nothing, the default shows a × and no ring; the
+    // trial keeps the ring and the name, greyed, wherever there is a cell.
+    const named = on || (this.join && onBoard);
+    t.sight.setAttribute("display", named ? "inline" : "none");
+    if (named) {
       t.sight.setAttribute("transform", `translate(${centre.x} ${centre.y})`);
       const what = this.aim(found);
-      const stone = what === "red" || what === "blue";
+      const stone = on && (what === "red" || what === "blue");
       t.ghost.setAttribute("class", `stone stone-${what} magnifier-ghost`);
       t.ghost.setAttribute("visibility", stone ? "visible" : "hidden");
       t.ring.setAttribute(

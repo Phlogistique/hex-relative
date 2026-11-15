@@ -11,6 +11,8 @@
   --cell: #f3ede0;
   --cell-hover: #e6dcc6;
   --accent: #b8892b;
+  /* a red gone grey: what the magnifier's caption says nothing with */
+  --dead: #a8635c;
   /* goban mode */
   --wood: #ebcb94;
   --wood-deep: #dab273;
@@ -973,6 +975,19 @@ body[data-magnify] .hex-board {
 
 .magnifier[data-off] .magnifier-name {
   color: var(--muted);
+}
+
+/* On trial (?magnifier=join): where lifting plays nothing the caption keeps
+   the cell's name, greyed on a muted red, and the ring is greyed with it. */
+.magnifier[data-join][data-off] .magnifier-name {
+  background: color-mix(in srgb, var(--dead) 22%, var(--panel));
+  border-color: color-mix(in srgb, var(--dead) 55%, var(--panel));
+  color: color-mix(in srgb, var(--dead) 60%, var(--muted));
+}
+
+.magnifier[data-join][data-off] .magnifier-ring {
+  stroke: var(--muted);
+  stroke-opacity: 0.7;
 }
 
 /* Every cancel ends the same way: the × shown, then the close-up fading out.
