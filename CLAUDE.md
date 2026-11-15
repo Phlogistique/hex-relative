@@ -442,8 +442,9 @@ close-up.
 
 **On trial: bringing the finger to the ring first** (`?magnifier=join`, read
 in `app.js` and passed as `way`). The close-up opens as above, but nothing
-moves — no ring, no pan — until the finger has come within `JOIN` (half a
-close-up cell) of the middle of the screen; a dotted line from the finger to a
+moves — no ring, no pan — until the finger has come within `JOIN` (1.2
+close-up cells, just outside the ring; half a cell was tried first and was too
+small a target) of the middle of the screen; a dotted line from the finger to a
 circle that size says where to go. From there the ring goes where the finger
 goes, under it, and the board pans as in the default. The idea is that the
 finger starts every slide from the middle, with room on every side, so the
