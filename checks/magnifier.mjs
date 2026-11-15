@@ -885,6 +885,178 @@ await check("The magnifier", async ({ open }) => {
     await page.close();
   }
 
+  // On trial, ?magnifier=join: the close-up opens the same way, but nothing
+  // moves until the finger has been brought to the ring in the middle of the
+  // screen, a line from the finger to it saying so; a lift on the way plays
+  // the cell touched. From the middle on, the ring goes where the finger goes,
+  // and a slide that steps over the middle between two events still gets
+  // there, where one that passes it wide does not.
+  for (const hash of ["#13", "#53"]) {
+    const page = await open(`?magnifier=join${hash}`, PHONE);
+    const size = Number(hash.slice(1));
+    const label = `join ${size}x${size}`;
+    const touch = await finger(page);
+    const { width, height } = page.viewportSize();
+    const mid = { x: width / 2, y: height / 2 };
+    const scene = async (x, y) => {
+      const state = await closeUp(page, x, y);
+      if (!state) throw new Error(`${label}: no close-up`);
+      const extra = await page.evaluate(() => {
+        const overlay = document.querySelector(
+          ".magnifier:not([data-cancelled])",
+        );
+        const hint = overlay.querySelector(".magnifier-hint");
+        return {
+          view: overlay.querySelector("svg").style.transform,
+          hint: hint.getAttribute("display") !== "none",
+          reach: Number(hint.querySelector("circle").getAttribute("r")),
+        };
+      });
+      return { ...state, ...extra };
+    };
+    const lift = async () => {
+      await touch.up();
+      await page.waitForTimeout(60);
+      return played(page);
+    };
+    const off = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const toward = (from, k) => ({
+      x: from.x + (mid.x - from.x) * k,
+      y: from.y + (mid.y - from.y) * k,
+    });
+
+    // A cell near the bottom left corner, well away from the middle.
+    const aimed = { col: 1, row: size - 2 };
+    const at = await onPage(page, aimed.col, aimed.row);
+
+    // On the way in, nothing moves, and lifting plays the cell touched.
+    await touch.down(at.x, at.y);
+    await page.waitForTimeout(40);
+    const opened = await scene(mid.x, mid.y);
+    if (!opened.hint || name(opened.under) !== name(aimed))
+      throw new Error(
+        `${label}: opened on ${name(opened.under)}, hint ${opened.hint}`,
+      );
+    for (const k of [0.15, 0.3, 0.45, 0.6]) {
+      const to = toward(at, k);
+      await touch.move(to.x, to.y);
+      const state = await scene(mid.x, mid.y);
+      if (
+        state.view !== opened.view ||
+        off(state.ring, mid) > 1 ||
+        !state.hint ||
+        !state.caption.endsWith(name(aimed))
+      )
+        throw new Error(
+          `${label}: ${Math.round(k * 100)}% of the way in, something moved: ${JSON.stringify(state)}`,
+        );
+    }
+    let after = await lift();
+    if (after.last !== name(aimed))
+      throw new Error(`${label}: lifted on the way in, played ${after.last}`);
+    const reach = opened.reach;
+    console.log(
+      `  ${pad(label, 14)}touched ${name(aimed)} ${Math.round(off(at, mid))}px from the middle: still until the finger is within ${Math.round(reach)}px of it; lifted on the way, ${after.last}`,
+    );
+    await page.evaluate(() => document.querySelector("#clear").click());
+
+    // Brought to the middle, the line goes, and from there the ring moves as
+    // far as the finger, staying under it, while the board pans.
+    await touch.down(at.x, at.y);
+    let joined = null;
+    for (let k = 0.04; k <= 1.001; k += 0.04) {
+      const to = toward(at, k);
+      await touch.move(to.x, to.y);
+      const state = await scene(mid.x, mid.y);
+      if (!state.hint) {
+        joined = { finger: to, state };
+        break;
+      }
+    }
+    if (!joined) throw new Error(`${label}: the finger never reached the ring`);
+    if (off(joined.finger, mid) > reach + 1)
+      throw new Error(
+        `${label}: joined ${Math.round(off(joined.finger, mid))}px from the middle`,
+      );
+    const path = [];
+    for (const [dx, dy] of [
+      [20, -10],
+      [60, -40],
+      [110, -80],
+      [140, -150],
+    ]) {
+      const to = { x: joined.finger.x + dx, y: joined.finger.y + dy };
+      await touch.move(to.x, to.y);
+      const want = { x: mid.x + dx, y: mid.y + dy };
+      const state = await scene(want.x, want.y);
+      // The ring goes round the cell the aim is in, so it is the aim that
+      // has to be within reach of the finger, and the ring round it.
+      holds(label, state, want, false);
+      if (!state.aiming || off(want, to) > reach + 1)
+        throw new Error(
+          `${label}: slid ${dx},${dy} after joining: caption ${state.caption}, aim ${Math.round(off(want, to))}px from the finger`,
+        );
+      path.push(state);
+    }
+    const end = path.at(-1);
+    after = await lift();
+    if (new Set(path.map((p) => name(p.under))).size < 3)
+      throw new Error(`${label}: sliding after joining did not move the aim`);
+    if (!after.last || !end.caption.endsWith(after.last))
+      throw new Error(
+        `${label}: lifted on ${name(end.under)}, played ${after.last}`,
+      );
+    console.log(
+      `  ${pad("", 14)}joined ${Math.round(off(joined.finger, mid))}px from the middle, slid over ${path.map((p) => name(p.under)).join(" ")}, played ${after.last}`,
+    );
+    await page.evaluate(() => document.querySelector("#clear").click());
+
+    // One quick slide straight over the middle, in a single event: joined,
+    // and the ring is under the finger on the far side.
+    await touch.down(at.x, at.y);
+    const over = { x: 2 * mid.x - at.x, y: 2 * mid.y - at.y };
+    const across = {
+      x: mid.x + (over.x - mid.x) * 0.2,
+      y: mid.y + (over.y - mid.y) * 0.2,
+    };
+    await touch.move(across.x, across.y);
+    const quick = await scene(across.x, across.y);
+    if (quick.hint || off(quick.ring, across) > quick.ring.r)
+      throw new Error(
+        `${label}: a quick slide over the middle: hint ${quick.hint}, the finger outside the ring`,
+      );
+    await lift();
+    await page.evaluate(() => document.querySelector("#clear").click());
+
+    // A slide that passes the middle wide, and comes back to it.
+    await touch.down(at.x, at.y);
+    const wide = 4 * reach;
+    for (const to of [
+      { x: at.x, y: mid.y + wide },
+      { x: mid.x + 80, y: mid.y + wide },
+    ]) {
+      await touch.move(to.x, to.y);
+      const state = await scene(mid.x, mid.y);
+      if (!state.hint || state.view !== opened.view)
+        throw new Error(
+          `${label}: passing ${Math.round(wide)}px wide of the middle joined it`,
+        );
+    }
+    await touch.move(mid.x, mid.y + reach / 2);
+    const back = await scene(mid.x, mid.y);
+    if (back.hint)
+      throw new Error(`${label}: came back to the middle and did not join`);
+    after = await lift();
+    if (after.last !== name(aimed))
+      throw new Error(
+        `${label}: joined and lifted without moving, played ${after.last}`,
+      );
+    console.log(
+      `  ${pad("", 14)}a quick slide over the middle joins; one ${Math.round(wide)}px wide of it does not, until it comes back`,
+    );
+    await page.close();
+  }
+
   // A tap through Playwright's own touchscreen — the one with a click behind
   // it — plays one stone with the magnifier on, and one with it off.
   for (const on of [true, false]) {

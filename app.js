@@ -94,6 +94,9 @@ new Magnifier(board, {
   name: (cell) =>
     `${relative(cell.col, cell.row, board.size)} · ${standard(cell.col, cell.row)}`,
   play: (cell, event) => placeStone(cell, event),
+  // On trial: ?magnifier=join brings the finger to the ring before anything
+  // moves.
+  way: new URLSearchParams(location.search).get("magnifier") ?? undefined,
 });
 
 /** Everything that has to follow a change of position or board size. */

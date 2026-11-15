@@ -78,6 +78,12 @@ nothing, and moving back brings the ring back. A press near the edge of the scre
 wobbles, and a press just past the board's outermost cells is a press for the
 nearest of them; one in the empty corners of the drawing does not open the magnifier at all.
 
+On trial, with `?magnifier=join` before the `#` (`…/hex-relative/?magnifier=join#13`): the close-up
+opens the same way, but nothing moves until you have brought your finger to the ring in the middle
+of the screen, a dotted line from your finger to it showing the way. From there the ring is under
+your finger and goes where it goes, the board panning as before. Lifting on the way in plays the
+cell you touched, so a tap is still a move.
+
 A pass and a swap are moves like any other and keep their place in that list. The swap is the pie
 rule as hexworld records it: the board is reflected across its long diagonal and every stone changes
 colour, which makes it its own undo. A pass is also what lets a one-colour position exist at all —
