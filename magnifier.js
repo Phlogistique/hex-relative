@@ -80,8 +80,10 @@ const KEEP = 0.5;
 // enough to leave the board, near enough to come straight back.
 const OVERRUN = 1.5;
 // On trial (`?magnifier=join`): how near the middle of the screen, in cells
-// of the close-up, the finger has to come for the ring to take to it.
-const JOIN = 0.5;
+// of the close-up, the finger has to come for the ring to take to it: a
+// little more than the ring itself, which reaches 1.06. Half a cell was tried
+// first and was too small a target to find.
+const JOIN = 1.2;
 
 export class Magnifier {
   /**

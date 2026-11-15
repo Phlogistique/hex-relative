@@ -1053,8 +1053,8 @@ await check("The magnifier", async ({ open }) => {
     await touch.down(at.x, at.y);
     const over = { x: 2 * mid.x - at.x, y: 2 * mid.y - at.y };
     const across = {
-      x: mid.x + (over.x - mid.x) * 0.2,
-      y: mid.y + (over.y - mid.y) * 0.2,
+      x: mid.x + (over.x - mid.x) * 0.6,
+      y: mid.y + (over.y - mid.y) * 0.6,
     };
     await touch.move(across.x, across.y);
     const quick = await scene(across.x, across.y);
