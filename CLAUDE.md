@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at the top or bottom, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, a cell in play with the finger by the glass on a side, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, and one tap being one move |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at the top or bottom, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, a cell in play with the finger by the glass on a side, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, one tap being one move, and on trial behind `?magnifier=join` nothing moving until the finger reaches the middle, a lift on the way in playing the cell touched, the ring following the finger from there, and a quick swipe over the middle joining where one passing it wide does not |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -439,6 +439,21 @@ a `×`; further out, in the drawing's empty corners, the page keeps the touch,
 to scroll with. The names that stand in the drawing's corner are inside the
 board's card, and before this a tap on the coordinate field opened the
 close-up.
+
+**On trial: bringing the finger to the ring first** (`?magnifier=join`, read
+in `app.js` and passed as `way`). The close-up opens as above, but nothing
+moves — no ring, no pan — until the finger has come within `JOIN` (half a
+close-up cell) of the middle of the screen; a dotted line from the finger to a
+circle that size says where to go. From there the ring goes where the finger
+goes, under it, and the board pans as in the default. The idea is that the
+finger starts every slide from the middle, with room on every side, so the
+dead spans and margins that a press near an edge needs in the default never
+come into it. A lift on the way in plays the cell touched, so a tap is still
+one move, and the top and bottom margins still give a × on the way in for a
+way out. Whether the finger has arrived is asked of the whole step between two
+`touchmove`s rather than where it ended, so a quick swipe over the middle does
+not step past it. The ring keeps whatever offset from the finger it joined at,
+at most `JOIN`, rather than jumping under it.
 
 `board.cellAt()` is the inverse of `at()`,
 turn included. The touch stays with the real board — touch events go to the

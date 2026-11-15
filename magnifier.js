@@ -26,6 +26,13 @@
  * transform on that copy and nothing else. The real board keeps the touch:
  * events stay with the element a touch started on, so the copy takes none.
  *
+ * On trial behind `?magnifier=join`: the close-up opens the same way, but
+ * nothing moves until the finger has been brought to the ring in the middle
+ * of the screen, a dotted line from the finger to it saying so. From there the
+ * ring is under the finger and goes where it goes, the board panning as
+ * before. A lift on the way in plays the cell that was touched, so a tap is
+ * still a move.
+ *
  * Mouse and pen are left alone. This is only for touch.
  */
 
@@ -65,6 +72,9 @@ const KEEP = 0.5;
 // How far the aim may run past the board, in cells, before it stops: far
 // enough to leave the board, near enough to come straight back.
 const OVERRUN = 1.5;
+// On trial (`?magnifier=join`): how near the middle of the screen, in cells
+// of the close-up, the finger has to come for the ring to take to it.
+const JOIN = 0.5;
 
 export class Magnifier {
   /**
@@ -72,8 +82,11 @@ export class Magnifier {
    * lifting there would do — a colour, "erase", or null for nothing — and
    * `name(cell)` what to call it. `play(cell, event)` is the lift.
    */
-  constructor(board, { enabled, aim, name, play }) {
+  constructor(board, { enabled, aim, name, play, way = "centre" }) {
     this.board = board;
+    // "centre", the ring moving with the finger from wherever it came down,
+    // or "join", on trial, the finger brought to the ring first.
+    this.join = way === "join";
     this.enabled = enabled;
     this.aim = aim;
     this.name = name;
@@ -172,7 +185,24 @@ export class Magnifier {
     caption.className = "magnifier-name";
     overlay.appendChild(caption);
 
+    // On trial: a dotted line from the finger to the ring, and a circle round
+    // the middle as big as the place the finger has to come to.
+    let hint = null;
+    if (this.join) {
+      hint = document.createElementNS(SVG_NS, "svg");
+      hint.setAttribute("class", "magnifier-hint");
+      hint.setAttribute("aria-hidden", "true");
+      const path = document.createElementNS(SVG_NS, "line");
+      const goal = document.createElementNS(SVG_NS, "circle");
+      goal.setAttribute("cx", screen.width / 2);
+      goal.setAttribute("cy", screen.height / 2);
+      goal.setAttribute("r", JOIN * zoom);
+      hint.append(path, goal);
+      overlay.appendChild(hint);
+    }
+
     const gap = gaps(finger.clientX, finger.clientY, screen);
+    const middle = { x: screen.width / 2, y: screen.height / 2 };
 
     this.touch = {
       id: finger.identifier,
@@ -194,8 +224,14 @@ export class Magnifier {
       ghost,
       ring,
       caption,
+      hint,
+      middle,
+      // On trial: where the finger was when it reached the ring, or null
+      // while it is still on its way. Everything else is ready from the off.
+      joined: this.join ? null : { x: finger.clientX, y: finger.clientY },
       cell: null,
     };
+    this.reach(this.touch.finger);
     this.update();
   }
 
@@ -219,11 +255,38 @@ export class Magnifier {
     return leaving;
   }
 
+  /**
+   * On trial: whether the finger, sliding from where it last was to `to`, has
+   * come within reach of the middle of the screen on the way — asked of the
+   * whole slide and not only where it ended, so that a quick one cannot step
+   * over the middle between two events.
+   */
+  reach(to) {
+    const t = this.touch;
+    if (t.joined) return;
+    const from = t.finger;
+    const m = { x: t.screen.left + t.middle.x, y: t.screen.top + t.middle.y };
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = dx * dx + dy * dy;
+    const k = length
+      ? Math.max(
+          0,
+          Math.min(1, ((m.x - from.x) * dx + (m.y - from.y) * dy) / length),
+        )
+      : 0;
+    const near = { x: from.x + k * dx, y: from.y + k * dy };
+    if (Math.hypot(near.x - m.x, near.y - m.y) <= JOIN * t.zoom)
+      t.joined = near;
+  }
+
   move(event) {
     const finger = this.ours(event);
     if (!finger) return;
     event.preventDefault();
-    this.touch.finger = { x: finger.clientX, y: finger.clientY };
+    const to = { x: finger.clientX, y: finger.clientY };
+    this.reach(to);
+    this.touch.finger = to;
     cancelAnimationFrame(this.frame);
     this.frame = requestAnimationFrame(() => this.update());
   }
@@ -232,7 +295,9 @@ export class Magnifier {
     const finger = this.ours(event);
     if (!finger) return;
     event.preventDefault();
-    this.touch.finger = { x: finger.clientX, y: finger.clientY };
+    const to = { x: finger.clientX, y: finger.clientY };
+    this.reach(to);
+    this.touch.finger = to;
     this.update();
     const { cell } = this.touch;
     const played = lifted && cell;
@@ -256,6 +321,7 @@ export class Magnifier {
     }
     t.caption.textContent = "×";
     t.sight.setAttribute("display", "none");
+    t.hint?.setAttribute("display", "none");
     t.overlay.toggleAttribute("data-off", true);
     t.overlay.toggleAttribute("data-cancelled", true);
     this.fading?.remove();
@@ -278,10 +344,8 @@ export class Magnifier {
   target() {
     const t = this.touch;
     const board = this.board;
-    const point = {
-      x: t.at.x + slid(t.finger.x, t.from.x) / t.gain,
-      y: t.at.y + slid(t.finger.y, t.from.y) / t.gain,
-    };
+    const d = this.slide();
+    const point = { x: t.at.x + d.x / t.gain, y: t.at.y + d.y / t.gain };
     const { col, row } = board.locate(point);
     const hold = (v) =>
       Math.max(-OVERRUN, Math.min(board.size - 1 + OVERRUN, v));
@@ -294,10 +358,22 @@ export class Magnifier {
    */
   sighted() {
     const t = this.touch;
-    return {
-      x: t.screen.width / 2 + slid(t.finger.x, t.from.x),
-      y: t.screen.height / 2 + slid(t.finger.y, t.from.y),
-    };
+    const d = this.slide();
+    return { x: t.middle.x + d.x, y: t.middle.y + d.y };
+  }
+
+  /**
+   * How far the finger counts as having slid. As far as it has, less the part
+   * of a slide out of the margin it came down in; on trial, as far as it has
+   * since it reached the middle, and nothing before.
+   */
+  slide() {
+    const t = this.touch;
+    if (this.join) {
+      if (!t.joined) return { x: 0, y: 0 };
+      return { x: t.finger.x - t.joined.x, y: t.finger.y - t.joined.y };
+    }
+    return { x: slid(t.finger.x, t.from.x), y: slid(t.finger.y, t.from.y) };
   }
 
   /** Put the aim under the ring, and the board around it. */
@@ -347,6 +423,20 @@ export class Magnifier {
     }
     // Out of the ring's way: at the top, unless that is where the ring is.
     t.overlay.toggleAttribute("data-low", ring.y < t.screen.height / 3);
+
+    if (t.hint) {
+      t.hint.setAttribute("display", t.joined ? "none" : "inline");
+      // From the finger to the edge of the circle, not into it.
+      const fx = t.finger.x - t.screen.left - t.middle.x;
+      const fy = t.finger.y - t.screen.top - t.middle.y;
+      const far = Math.hypot(fx, fy) || 1;
+      const stop = Math.min(1, (JOIN * t.zoom) / far);
+      const line = t.hint.firstChild;
+      line.setAttribute("x1", t.middle.x + fx);
+      line.setAttribute("y1", t.middle.y + fy);
+      line.setAttribute("x2", t.middle.x + fx * stop);
+      line.setAttribute("y2", t.middle.y + fy * stop);
+    }
   }
 }
 
