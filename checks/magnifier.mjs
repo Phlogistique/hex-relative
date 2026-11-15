@@ -887,10 +887,12 @@ await check("The magnifier", async ({ open }) => {
 
   // On trial, ?magnifier=join: the close-up opens the same way, but nothing
   // moves until the finger has been brought to the ring in the middle of the
-  // screen, a line from the finger to it saying so; a lift on the way plays
-  // the cell touched. From the middle on, the ring goes where the finger goes,
-  // and a slide that steps over the middle between two events still gets
-  // there, where one that passes it wide does not.
+  // screen, a line from the finger to it saying so, and nothing is in play
+  // until then: a lift on the way plays nothing. From the middle on, the ring
+  // goes where the finger goes, and a slide that steps over the middle between
+  // two events still gets there, where one that passes it wide does not. The
+  // sides have wide margins. Where lifting plays nothing the caption keeps the
+  // cell's name, greyed, and only says × with the ring off the board.
   for (const hash of ["#13", "#53"]) {
     const page = await open(`?magnifier=join${hash}`, PHONE);
     const size = Number(hash.slice(1));
@@ -907,6 +909,7 @@ await check("The magnifier", async ({ open }) => {
         );
         const hint = overlay.querySelector(".magnifier-hint");
         return {
+          dead: overlay.hasAttribute("data-off"),
           view: overlay.querySelector("svg").style.transform,
           hint: hint.getAttribute("display") !== "none",
           reach: Number(hint.querySelector("circle").getAttribute("r")),
@@ -920,6 +923,32 @@ await check("The magnifier", async ({ open }) => {
       return played(page);
     };
     const off = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    // A lift that plays nothing: the close-up stays a moment as it was,
+    // greyed, saying what it said, and then goes.
+    const liftsGreyed = async (what, caption) => {
+      const before = (await played(page)).hash;
+      await touch.up();
+      await page.waitForTimeout(40);
+      const shown = await page.evaluate(() => {
+        const overlay = document.querySelector(".magnifier[data-cancelled]");
+        return (
+          overlay && {
+            caption: overlay.querySelector(".magnifier-name").textContent,
+            dead: overlay.hasAttribute("data-off"),
+          }
+        );
+      });
+      if (!shown || !shown.dead || shown.caption !== caption)
+        throw new Error(
+          `${label}: lifted ${what}: wanted ${caption} greyed, got ${JSON.stringify(shown)}`,
+        );
+      await page.waitForTimeout(450);
+      const after = await played(page);
+      if (await page.$(".magnifier"))
+        throw new Error(`${label}: lifted ${what}: the close-up is still up`);
+      if (after.hash !== before)
+        throw new Error(`${label}: lifted ${what}: played ${after.last}`);
+    };
     const toward = (from, k) => ({
       x: from.x + (mid.x - from.x) * k,
       y: from.y + (mid.y - from.y) * k,
@@ -929,13 +958,20 @@ await check("The magnifier", async ({ open }) => {
     const aimed = { col: 1, row: size - 2 };
     const at = await onPage(page, aimed.col, aimed.row);
 
-    // On the way in, nothing moves, and lifting plays the cell touched.
+    // On the way in, nothing moves, the cell touched is named greyed, and
+    // lifting plays nothing.
     await touch.down(at.x, at.y);
     await page.waitForTimeout(40);
     const opened = await scene(mid.x, mid.y);
-    if (!opened.hint || name(opened.under) !== name(aimed))
+    const named = (await closeUp(page, mid.x, mid.y)).caption;
+    if (
+      !opened.hint ||
+      !opened.dead ||
+      name(opened.under) !== name(aimed) ||
+      !opened.caption.endsWith(name(aimed))
+    )
       throw new Error(
-        `${label}: opened on ${name(opened.under)}, hint ${opened.hint}`,
+        `${label}: opened on ${name(opened.under)}, caption ${opened.caption}, hint ${opened.hint}, greyed ${opened.dead}`,
       );
     for (const k of [0.15, 0.3, 0.45, 0.6]) {
       const to = toward(at, k);
@@ -945,20 +981,19 @@ await check("The magnifier", async ({ open }) => {
         state.view !== opened.view ||
         off(state.ring, mid) > 1 ||
         !state.hint ||
+        !state.dead ||
         !state.caption.endsWith(name(aimed))
       )
         throw new Error(
           `${label}: ${Math.round(k * 100)}% of the way in, something moved: ${JSON.stringify(state)}`,
         );
     }
-    let after = await lift();
-    if (after.last !== name(aimed))
-      throw new Error(`${label}: lifted on the way in, played ${after.last}`);
+    await liftsGreyed("on the way in", named);
+    let after;
     const reach = opened.reach;
     console.log(
-      `  ${pad(label, 14)}touched ${name(aimed)} ${Math.round(off(at, mid))}px from the middle: still until the finger is within ${Math.round(reach)}px of it; lifted on the way, ${after.last}`,
+      `  ${pad(label, 14)}touched ${name(aimed)} ${Math.round(off(at, mid))}px from the middle: still, and ${named} greyed, until the finger is within ${Math.round(reach)}px of it; lifted on the way, nothing`,
     );
-    await page.evaluate(() => document.querySelector("#clear").click());
 
     // Brought to the middle, the line goes, and from there the ring moves as
     // far as the finger, staying under it, while the board pans.
@@ -973,6 +1008,8 @@ await check("The magnifier", async ({ open }) => {
         break;
       }
     }
+    if (joined?.state.dead)
+      throw new Error(`${label}: reached the middle and still greyed`);
     if (!joined) throw new Error(`${label}: the finger never reached the ring`);
     if (off(joined.finger, mid) > reach + 1)
       throw new Error(
@@ -992,7 +1029,7 @@ await check("The magnifier", async ({ open }) => {
       // The ring goes round the cell the aim is in, so it is the aim that
       // has to be within reach of the finger, and the ring round it.
       holds(label, state, want, false);
-      if (!state.aiming || off(want, to) > reach + 1)
+      if (!state.aiming || state.dead || off(want, to) > reach + 1)
         throw new Error(
           `${label}: slid ${dx},${dy} after joining: caption ${state.caption}, aim ${Math.round(off(want, to))}px from the finger`,
         );
@@ -1054,6 +1091,55 @@ await check("The magnifier", async ({ open }) => {
     console.log(
       `  ${pad("", 14)}a quick slide over the middle joins; one ${Math.round(wide)}px wide of it does not, until it comes back`,
     );
+    await page.evaluate(() => document.querySelector("#clear").click());
+
+    // Joined, then towards the right side: in play 50px from it, greyed in
+    // the 40px margin with the cell still named, back in play on the way
+    // back, and a lift in the margin plays nothing.
+    const join = async () => {
+      await touch.down(at.x, at.y);
+      for (let k = 0.25; k <= 1.001; k += 0.25) {
+        const to = toward(at, k);
+        await touch.move(to.x, to.y);
+      }
+    };
+    await join();
+    const side = [];
+    for (const x of [width - 50, width - 30, width - 50, width - 30]) {
+      await touch.move(x, mid.y);
+      const state = await scene(mid.x + x - mid.x, mid.y);
+      side.push(state);
+    }
+    const [inside, margin, again, last] = side;
+    if (inside.dead || !margin.dead || again.dead || !last.dead)
+      throw new Error(
+        `${label}: towards the right side, greyed: ${side.map((s) => s.dead).join(" ")}`,
+      );
+    if (margin.caption === "×" || !margin.aiming)
+      throw new Error(
+        `${label}: in the side margin, caption ${margin.caption}, ring ${margin.aiming}`,
+      );
+    await liftsGreyed("in the side margin", last.caption);
+    console.log(
+      `  ${pad("", 14)}50px from the right side ${inside.caption}; 30px from it ${margin.caption} greyed; a lift there, nothing`,
+    );
+
+    // Joined, then the ring off the board on the left: the × stays, greyed.
+    await join();
+    let gone = null;
+    for (let dx = 10; dx < mid.x - 50; dx += 10) {
+      await touch.move(mid.x - dx, mid.y);
+      const state = await scene(mid.x - dx, mid.y);
+      if (state.caption === "×") {
+        gone = state;
+        break;
+      }
+    }
+    if (!gone || !gone.dead || gone.aiming)
+      throw new Error(
+        `${label}: the ring off the board: ${JSON.stringify(gone)}`,
+      );
+    await liftsGreyed("off the board", "×");
     await page.close();
   }
 
@@ -1068,6 +1154,18 @@ await check("The magnifier", async ({ open }) => {
     const { hash } = await played(page);
     console.log(`  tap, magnifier ${on ? "on " : "off"} -> ${hash}`);
     if (hash !== "#13,g7") throw new Error(`tap played ${hash}`);
+    await page.close();
+  }
+  // On trial, a tap never reaches the middle and plays nothing, the click
+  // behind it included.
+  {
+    const page = await open("?magnifier=join#13", PHONE);
+    const at = await onPage(page, 6, 6);
+    await page.touchscreen.tap(at.x, at.y);
+    await page.waitForTimeout(80);
+    const { hash } = await played(page);
+    console.log(`  tap, magnifier=join -> ${hash}`);
+    if (hash !== "#13") throw new Error(`a tap with join played ${hash}`);
     await page.close();
   }
 });

@@ -81,8 +81,11 @@ nearest of them; one in the empty corners of the drawing does not open the magni
 On trial, with `?magnifier=join` before the `#` (`…/hex-relative/?magnifier=join#13`): the close-up
 opens the same way, but nothing moves until you have brought your finger to the ring in the middle
 of the screen, a dotted line from your finger to it showing the way. From there the ring is under
-your finger and goes where it goes, the board panning as before. Lifting on the way in plays the
-cell you touched, so a tap is still a move.
+your finger and goes where it goes, the board panning as before. Nothing is in play until your
+finger has got there: lifting on the way in, or a plain tap, plays nothing. The sides of the screen
+have wide margins, 40px, where lifting plays nothing either. Wherever lifting would play nothing,
+the caption keeps the cell's name, greyed on a muted red, and the ring is greyed; only with the ring
+off the board, where there is no name to give, does it say ×, on the same muted red.
 
 A pass and a swap are moves like any other and keep their place in that list. The swap is the pie
 rule as hexworld records it: the board is reflected across its long diagonal and every stone changes

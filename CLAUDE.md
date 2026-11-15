@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at the top or bottom, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, a cell in play with the finger by the glass on a side, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, one tap being one move, and on trial behind `?magnifier=join` nothing moving until the finger reaches the middle, a lift on the way in playing the cell touched, the ring following the finger from there, and a quick swipe over the middle joining where one passing it wide does not |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at the top or bottom, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, a cell in play with the finger by the glass on a side, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, one tap being one move, and on trial behind `?magnifier=join` nothing moving or in play until the finger reaches the middle, the cell named greyed meanwhile and a lift or a tap playing nothing, the ring following the finger from there, a quick swipe over the middle joining where one passing it wide does not, the 40px side margins greyed and playing nothing, and the × kept only for the ring off the board |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -447,13 +447,26 @@ close-up cell) of the middle of the screen; a dotted line from the finger to a
 circle that size says where to go. From there the ring goes where the finger
 goes, under it, and the board pans as in the default. The idea is that the
 finger starts every slide from the middle, with room on every side, so the
-dead spans and margins that a press near an edge needs in the default never
-come into it. A lift on the way in plays the cell touched, so a tap is still
-one move, and the top and bottom margins still give a × on the way in for a
-way out. Whether the finger has arrived is asked of the whole step between two
+dead spans a press near an edge needs in the default never come into it.
+Whether the finger has arrived is asked of the whole step between two
 `touchmove`s rather than where it ended, so a quick swipe over the middle does
 not step past it. The ring keeps whatever offset from the finger it joined at,
 at most `JOIN`, rather than jumping under it.
+
+Three things set the trial apart from the default beyond that, all asked for
+after trying it. **Nothing is in play until the finger has arrived**: a lift
+on the way in plays nothing, so a plain tap plays nothing either (the first
+version played the touched cell). **The sides have margins again, and wide
+ones** (`JOIN_EDGE`, 40px): the reason the default has none — the board's edge
+cells being reached from the glass — does not hold once every slide starts
+from the middle. **Where lifting plays nothing the caption is not a `×`**: it
+keeps the cell's name, greyed on a muted red (`--dead`, a red gone grey, kept
+apart from `--red` so that it does not read as red's move), and the ring stays
+round the cell, greyed, with no ghost stone. Only the ring off the board, with
+no name to give, still says `×`, on the same muted red. A lift on any of them
+fades out as it stood rather than switching to a `×` first. All of it hangs
+off `data-join` on the overlay and `this.join` in `magnifier.js`; the default
+is untouched.
 
 `board.cellAt()` is the inverse of `at()`,
 turn included. The touch stays with the real board — touch events go to the
