@@ -79,7 +79,10 @@ function outcome(cell, event) {
 
 function placeStone(cell, event) {
   lastTouched = cell;
-  board.mark(null);
+  // The mark says which cell the panel below is naming, so a tap leaves one
+  // whatever the tap did to the position. On a touch screen it is the only
+  // thing on the board that says where the answer came from.
+  board.mark(cell);
   note = "";
   const what = outcome(cell, event);
   if (what === "erase") board.play(cell.col, cell.row, null);
