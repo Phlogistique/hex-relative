@@ -886,13 +886,15 @@ await check("The magnifier", async ({ open }) => {
   }
 
   // On trial, ?magnifier=join: the close-up opens the same way, but nothing
-  // moves until the finger has been brought to the ring in the middle of the
-  // screen, a line from the finger to it saying so, and nothing is in play
-  // until then: a lift on the way plays nothing. From the middle on, the ring
-  // goes where the finger goes, and a slide that steps over the middle between
-  // two events still gets there, where one that passes it wide does not. The
-  // sides have wide margins. Where lifting plays nothing the caption keeps the
-  // cell's name, greyed, and only says × with the ring off the board.
+  // moves until the finger has been brought onto the ringed hexagon in the
+  // middle of the screen, a line from the finger to it saying so, and nothing
+  // is in play until then: a lift on the way plays nothing. Nothing moves
+  // either while the finger goes on to the middle of the ring; from there the
+  // ring goes where the finger goes, and a slide that steps over the ring
+  // between two events still gets there, where one that passes it wide does
+  // not. The sides have wide margins. Where lifting plays nothing the caption
+  // keeps the cell's name, greyed, and only says × with the ring off the
+  // board.
   for (const hash of ["#13", "#53"]) {
     const page = await open(`?magnifier=join${hash}`, PHONE);
     const size = Number(hash.slice(1));
@@ -912,7 +914,15 @@ await check("The magnifier", async ({ open }) => {
           dead: overlay.hasAttribute("data-off"),
           view: overlay.querySelector("svg").style.transform,
           hint: hint.getAttribute("display") !== "none",
-          reach: Number(hint.querySelector("circle").getAttribute("r")),
+          // The ring's corners on the screen.
+          hexagon: (() => {
+            const ring = overlay.querySelector(".magnifier-ring");
+            const matrix = ring.getScreenCTM();
+            return [...ring.points].map((p) => {
+              const q = p.matrixTransform(matrix);
+              return { x: q.x, y: q.y };
+            });
+          })(),
         };
       });
       return { ...state, ...extra };
@@ -923,6 +933,16 @@ await check("The magnifier", async ({ open }) => {
       return played(page);
     };
     const off = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    // Whether a point is inside a convex polygon, by at least `by` pixels
+    // (by default, give or take a pixel).
+    const within = (p, polygon, by = -1) => {
+      const sides = polygon.map((a, k) => {
+        const b = polygon[(k + 1) % polygon.length];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        return ((b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)) / len;
+      });
+      return sides.every((d) => d >= by) || sides.every((d) => d <= -by);
+    };
     // A lift that plays nothing: the close-up stays a moment as it was,
     // greyed, saying what it said, and then goes.
     const liftsGreyed = async (what, caption) => {
@@ -990,15 +1010,18 @@ await check("The magnifier", async ({ open }) => {
     }
     await liftsGreyed("on the way in", named);
     let after;
-    const reach = opened.reach;
+    const hexagon = opened.hexagon;
+    const reach = opened.ring.r;
     console.log(
-      `  ${pad(label, 14)}touched ${name(aimed)} ${Math.round(off(at, mid))}px from the middle: still, and ${named} greyed, until the finger is within ${Math.round(reach)}px of it; lifted on the way, nothing`,
+      `  ${pad(label, 14)}touched ${name(aimed)} ${Math.round(off(at, mid))}px from the middle: still, and ${named} greyed, until the finger is on the ring; lifted on the way, nothing`,
     );
 
-    // Brought to the middle, the line goes, and from there the ring moves as
-    // far as the finger, staying under it, while the board pans.
+    // On the ring, the line goes and the cell is in play; on to the middle of
+    // the ring, nothing moves; from there the ring moves as far as the
+    // finger, under it, while the board pans.
     await touch.down(at.x, at.y);
     let joined = null;
+    let before = at;
     for (let k = 0.04; k <= 1.001; k += 0.04) {
       const to = toward(at, k);
       await touch.move(to.x, to.y);
@@ -1007,14 +1030,36 @@ await check("The magnifier", async ({ open }) => {
         joined = { finger: to, state };
         break;
       }
+      before = to;
     }
-    if (joined?.state.dead)
-      throw new Error(`${label}: reached the middle and still greyed`);
     if (!joined) throw new Error(`${label}: the finger never reached the ring`);
-    if (off(joined.finger, mid) > reach + 1)
+    if (joined.state.dead)
+      throw new Error(`${label}: reached the ring and still greyed`);
+    if (!within(joined.finger, hexagon) || within(before, hexagon, 1))
       throw new Error(
-        `${label}: joined ${Math.round(off(joined.finger, mid))}px from the middle`,
+        `${label}: joined at ${Math.round(off(joined.finger, mid))}px from the middle, not on coming onto the ring`,
       );
+    for (let k = 0.2; k <= 1.001; k += 0.2) {
+      const to = {
+        x: joined.finger.x + (mid.x - joined.finger.x) * k,
+        y: joined.finger.y + (mid.y - joined.finger.y) * k,
+      };
+      await touch.move(to.x, to.y);
+      const state = await scene(mid.x, mid.y);
+      if (
+        state.view !== joined.state.view ||
+        off(state.ring, mid) > 1 ||
+        state.dead ||
+        !state.caption.endsWith(name(aimed))
+      )
+        throw new Error(
+          `${label}: going on to the middle of the ring, ${Math.round(off(to, mid))}px from it, something moved: ${state.caption}`,
+        );
+    }
+    console.log(
+      `  ${pad("", 14)}on the ring ${Math.round(off(joined.finger, mid))}px from the middle; on to the middle, still ${name(aimed)}`,
+    );
+    joined.finger = mid;
     const path = [];
     for (const [dx, dy] of [
       [20, -10],
@@ -1029,7 +1074,7 @@ await check("The magnifier", async ({ open }) => {
       // The ring goes round the cell the aim is in, so it is the aim that
       // has to be within reach of the finger, and the ring round it.
       holds(label, state, want, false);
-      if (!state.aiming || state.dead || off(want, to) > reach + 1)
+      if (!state.aiming || state.dead || off(want, to) > 1)
         throw new Error(
           `${label}: slid ${dx},${dy} after joining: caption ${state.caption}, aim ${Math.round(off(want, to))}px from the finger`,
         );
@@ -1044,7 +1089,7 @@ await check("The magnifier", async ({ open }) => {
         `${label}: lifted on ${name(end.under)}, played ${after.last}`,
       );
     console.log(
-      `  ${pad("", 14)}joined ${Math.round(off(joined.finger, mid))}px from the middle, slid over ${path.map((p) => name(p.under)).join(" ")}, played ${after.last}`,
+      `  ${pad("", 14)}from the middle of the ring, slid over ${path.map((p) => name(p.under)).join(" ")}, played ${after.last}`,
     );
     await page.evaluate(() => document.querySelector("#clear").click());
 
@@ -1063,6 +1108,32 @@ await check("The magnifier", async ({ open }) => {
         `${label}: a quick slide over the middle: hint ${quick.hint}, the finger outside the ring`,
       );
     await lift();
+    await page.evaluate(() => document.querySelector("#clear").click());
+
+    // Once the finger has drawn away from the middle, coming nearer again
+    // moves the aim like any other slide: onto the ring, out again, then to
+    // the middle carries the aim past the cell it came for.
+    await touch.down(at.x, at.y);
+    let entry = null;
+    for (let k = 0.04; k <= 1.001 && !entry; k += 0.04) {
+      const to = toward(at, k);
+      await touch.move(to.x, to.y);
+      if (!(await scene(mid.x, mid.y)).hint) entry = to;
+    }
+    await touch.move(
+      entry.x + (entry.x - mid.x) * 0.5,
+      entry.y + (entry.y - mid.y) * 0.5,
+    );
+    await touch.move(mid.x, mid.y);
+    const past = await scene(mid.x, mid.y);
+    if (past.dead || past.caption.endsWith(name(aimed)))
+      throw new Error(
+        `${label}: drew away and came back to the middle: ${past.caption}`,
+      );
+    after = await lift();
+    console.log(
+      `  ${pad("", 14)}onto the ring, away, then to the middle: ${after.last}, not ${name(aimed)}`,
+    );
     await page.evaluate(() => document.querySelector("#clear").click());
 
     // A slide that passes the middle wide, and comes back to it.

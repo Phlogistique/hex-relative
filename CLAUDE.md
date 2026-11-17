@@ -42,7 +42,7 @@ worth reading as much as running.
 | `goban.mjs` | the dual drawing: three lines through every cell, star points, clearances, a click, and no red or blue left anywhere |
 | `numbers.mjs` | the move number sits on the middle of its stone's ink |
 | `placing.mjs` | what a click does in each placing mode, occupied cell or not |
-| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at the top or bottom, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, a cell in play with the finger by the glass on a side, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, one tap being one move, and on trial behind `?magnifier=join` nothing moving or in play until the finger reaches the middle, the cell named greyed meanwhile and a lift or a tap playing nothing, the ring following the finger from there, a quick swipe over the middle joining where one passing it wide does not, the 40px side margins greyed and playing nothing, and the × kept only for the ring off the board |
+| `magnifier.mjs` | a finger on the board: about 100 cells to a screen, the touched cell in the middle of it wherever the finger came down, every corner of the board included, the ring moving as far as the finger, the lift playing the ringed cell even where the screen's edge cuts it, a × with the close-up still up for the ring off the board, the cell less than half on the screen or the finger at the top or bottom, moving back resuming, a lift on a × playing nothing, a press in an edge's margin keeping its cell however it wobbles until it has been away, a push from a cell short of the right edge reaching the edge and the × past it, a cell in play with the finger by the glass on a side, a press just past the outermost cell playing that cell, the empty drawing and the coordinate field opening nothing, a second finger changing nothing, one tap being one move, and on trial behind `?magnifier=join` nothing moving or in play until the finger is on the ring, the cell named greyed meanwhile and a lift or a tap playing nothing, nothing moving either while it goes on to the middle of the ring, the ring following the finger from there, coming back nearer after drawing away moving the aim like any slide, a quick swipe over the ring joining where one passing it wide does not, the 40px side margins greyed and playing nothing, and the × kept only for the ring off the board |
 | `history.mjs` | first/prev/next/last, the keyboard, clicking a row, branching |
 | `passing.mjs` | passes and swaps, including that a swap is its own undo |
 | `swap-button.mjs` | the swap is offered only in reply to the opening move |
@@ -442,17 +442,33 @@ close-up.
 
 **On trial: bringing the finger to the ring first** (`?magnifier=join`, read
 in `app.js` and passed as `way`). The close-up opens as above, but nothing
-moves — no ring, no pan — until the finger has come within `JOIN` (1.2
-close-up cells, just outside the ring; half a cell was tried first and was too
-small a target) of the middle of the screen; a dotted line from the finger to a
-circle that size says where to go. From there the ring goes where the finger
-goes, under it, and the board pans as in the default. The idea is that the
-finger starts every slide from the middle, with room on every side, so the
-dead spans a press near an edge needs in the default never come into it.
-Whether the finger has arrived is asked of the whole step between two
-`touchmove`s rather than where it ended, so a quick swipe over the middle does
-not step past it. The ring keeps whatever offset from the finger it joined at,
-at most `JOIN`, rather than jumping under it.
+moves — no ring, no pan — until the finger is on the ring, the touched cell's
+hexagon in the middle of the screen; a dotted line from the finger to the ring
+says where to go. The idea is that the finger starts every slide from the
+middle, with room on every side, so the dead spans a press near an edge needs
+in the default never come into it. Whether the finger has arrived is asked of
+the whole step between two `touchmove`s rather than where it ended
+(`crosses()`, the step clipped to the hexagon), so a quick swipe over the ring
+does not step past it.
+
+The target is the hexagon itself, and arriving is not where counting starts,
+and both come from one fact: **once the ring follows the finger the aim moves
+twice as far over the board as the finger does** — the ring moves with it and
+the board pans the other way under it (`gain` is half the close-up's scale).
+A cell's side is 0.87 of a cell from its middle, so the finger can move 0.43
+of a cell before the aim changes cell. Anything that counted from where the
+finger arrived therefore had to make arriving mean 0.43 of a cell from the
+middle, which was too small to find: half a cell was tried and refused as too
+small, then a circle of 1.2 cells, which is easy to find but where carrying on
+towards the middle — what a finger does — carried the aim one or two cells
+past the one it came for. Instead, for as long as the finger keeps getting
+nearer the middle, slides are counted from the nearest it has come (`nearing`,
+`best`), so going on in moves nothing at all; the first time it draws away by
+more than `WOBBLE` (4px) that point is fixed for good, and coming nearer again
+afterwards is a slide like any other. So the target can be as big as the ring,
+the ring ends up under the finger exactly as far as the finger went in, and
+nothing ever jumps. What it costs is that to reach a cell beyond the middle,
+the way in counts for nothing.
 
 Three things set the trial apart from the default beyond that, all asked for
 after trying it. **Nothing is in play until the finger has arrived**: a lift

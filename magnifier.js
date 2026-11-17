@@ -27,10 +27,11 @@
  * events stay with the element a touch started on, so the copy takes none.
  *
  * On trial behind `?magnifier=join`: the close-up opens the same way, but
- * nothing moves until the finger has been brought to the ring in the middle
- * of the screen, a dotted line from the finger to it saying so. From there the
- * ring is under the finger and goes where it goes, the board panning as
- * before. Nothing is in play until then, so a lift on the way in, or a tap,
+ * nothing moves until the finger has been brought onto the ringed hexagon in
+ * the middle of the screen, a dotted line from the finger to it saying so.
+ * Nothing moves either while the finger goes on towards the middle of it; from
+ * where it stops getting nearer, the ring goes where the finger goes and the
+ * board pans as before. Nothing is in play until then, so a lift on the way in, or a tap,
  * plays nothing; and since the finger always starts from the middle, the sides
  * of the screen get wide margins back. Where lifting would play nothing the
  * caption is not a × but the cell's name, greyed on a muted red, the ring
@@ -79,11 +80,11 @@ const KEEP = 0.5;
 // How far the aim may run past the board, in cells, before it stops: far
 // enough to leave the board, near enough to come straight back.
 const OVERRUN = 1.5;
-// On trial (`?magnifier=join`): how near the middle of the screen, in cells
-// of the close-up, the finger has to come for the ring to take to it: a
-// little more than the ring itself, which reaches 1.06. Half a cell was tried
-// first and was too small a target to find.
-const JOIN = 1.2;
+// The ring stands this far out from the hexagon it rings.
+const RING = 1.06;
+// On trial (`?magnifier=join`): how far, in pixels, a finger still on its way
+// to the middle may wobble back out before it counts as having set off.
+const WOBBLE = 4;
 
 export class Magnifier {
   /**
@@ -186,7 +187,7 @@ export class Magnifier {
       "points",
       this.board
         .vertices()
-        .map(([x, y]) => `${x * 1.06},${y * 1.06}`)
+        .map(([x, y]) => `${x * RING},${y * RING}`)
         .join(" "),
     );
     sight.append(ghost, ring);
@@ -196,24 +197,24 @@ export class Magnifier {
     caption.className = "magnifier-name";
     overlay.appendChild(caption);
 
-    // On trial: a dotted line from the finger to the ring, and a circle round
-    // the middle as big as the place the finger has to come to.
+    // On trial: a dotted line from the finger to the ring, which is itself
+    // the place the finger has to come to.
     let hint = null;
     if (this.join) {
       hint = document.createElementNS(SVG_NS, "svg");
       hint.setAttribute("class", "magnifier-hint");
       hint.setAttribute("aria-hidden", "true");
-      const path = document.createElementNS(SVG_NS, "line");
-      const goal = document.createElementNS(SVG_NS, "circle");
-      goal.setAttribute("cx", screen.width / 2);
-      goal.setAttribute("cy", screen.height / 2);
-      goal.setAttribute("r", JOIN * zoom);
-      hint.append(path, goal);
+      hint.append(document.createElementNS(SVG_NS, "line"));
       overlay.appendChild(hint);
     }
 
     const gap = gaps(finger.clientX, finger.clientY, screen);
     const middle = { x: screen.width / 2, y: screen.height / 2 };
+    // The ring as it first stands, in the middle, on the screen.
+    const hexagon = this.board.vertices().map(([vx, vy]) => ({
+      x: screen.left + middle.x + vx * RING * zoom,
+      y: screen.top + middle.y + vy * RING * zoom,
+    }));
 
     this.touch = {
       id: finger.identifier,
@@ -237,9 +238,14 @@ export class Magnifier {
       caption,
       hint,
       middle,
-      // On trial: where the finger was when it reached the ring, or null
-      // while it is still on its way. Everything else is ready from the off.
+      hexagon,
+      // Where slides are counted from. On trial it is null until the finger
+      // is on the ring, and then follows it for as long as it is getting
+      // nearer the middle (`nearing`), `best` being as near as it has come.
+      // Everything else counts from where the finger came down.
       joined: this.join ? null : { x: finger.clientX, y: finger.clientY },
+      nearing: false,
+      best: Infinity,
       cell: null,
     };
     this.reach(this.touch.finger);
@@ -267,28 +273,34 @@ export class Magnifier {
   }
 
   /**
-   * On trial: whether the finger, sliding from where it last was to `to`, has
-   * come within reach of the middle of the screen on the way — asked of the
-   * whole slide and not only where it ended, so that a quick one cannot step
-   * over the middle between two events.
+   * On trial: follow the finger sliding from where it last was to `to`.
+   *
+   * Until it has been on the ring nothing is counted, and whether it has is
+   * asked of the whole slide and not only where it ended, so that a quick one
+   * cannot step over the ring between two events. From there, for as long as
+   * it keeps getting nearer the middle, slides are counted from the nearest it
+   * has come: the aim moves twice as far over the board as the finger, so a
+   * finger going on towards the middle of the ring would otherwise carry the
+   * aim off the cell it came for. The first time it draws away again, by more
+   * than a wobble, that point is fixed for good, and from there on it moves
+   * the ring and the board.
    */
   reach(to) {
     const t = this.touch;
-    if (t.joined) return;
     const from = t.finger;
+    if (!t.joined) {
+      if (!crosses(from, to, t.hexagon)) return;
+      t.nearing = true;
+    }
+    if (!t.nearing) return;
     const m = { x: t.screen.left + t.middle.x, y: t.screen.top + t.middle.y };
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = dx * dx + dy * dy;
-    const k = length
-      ? Math.max(
-          0,
-          Math.min(1, ((m.x - from.x) * dx + (m.y - from.y) * dy) / length),
-        )
-      : 0;
-    const near = { x: from.x + k * dx, y: from.y + k * dy };
-    if (Math.hypot(near.x - m.x, near.y - m.y) <= JOIN * t.zoom)
+    const near = closest(from, to, m);
+    const d = Math.hypot(near.x - m.x, near.y - m.y);
+    if (d < t.best) {
+      t.best = d;
       t.joined = near;
+    }
+    if (Math.hypot(to.x - m.x, to.y - m.y) > t.best + WOBBLE) t.nearing = false;
   }
 
   move(event) {
@@ -446,11 +458,13 @@ export class Magnifier {
 
     if (t.hint) {
       t.hint.setAttribute("display", t.joined ? "none" : "inline");
-      // From the finger to the edge of the circle, not into it.
+      // From the finger to the ring, not into it.
       const fx = t.finger.x - t.screen.left - t.middle.x;
       const fy = t.finger.y - t.screen.top - t.middle.y;
-      const far = Math.hypot(fx, fy) || 1;
-      const stop = Math.min(1, (JOIN * t.zoom) / far);
+      const out = this.board
+        .vertices()
+        .map(([vx, vy]) => ({ x: vx * RING * t.zoom, y: vy * RING * t.zoom }));
+      const stop = Math.min(1, boundary(out, fx, fy));
       const line = t.hint.firstChild;
       line.setAttribute("x1", t.middle.x + fx);
       line.setAttribute("y1", t.middle.y + fy);
@@ -486,6 +500,65 @@ function still(x, y, screen) {
     nothing. */
 function slid(v, [lo, hi]) {
   return v < lo ? v - lo : v > hi ? v - hi : 0;
+}
+
+/** The point on the segment from a to b nearest p. */
+function closest(a, b, p) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = dx * dx + dy * dy;
+  const k = length
+    ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length))
+    : 0;
+  return { x: a.x + k * dx, y: a.y + k * dy };
+}
+
+/**
+ * Whether the segment from a to b touches a convex polygon anywhere, ends
+ * included: the segment clipped to each side's half-plane in turn, and
+ * whether anything of it is left.
+ */
+function crosses(a, b, polygon) {
+  const c = {
+    x: polygon.reduce((s, p) => s + p.x, 0) / polygon.length,
+    y: polygon.reduce((s, p) => s + p.y, 0) / polygon.length,
+  };
+  const d = { x: b.x - a.x, y: b.y - a.y };
+  let lo = 0;
+  let hi = 1;
+  for (let k = 0; k < polygon.length; k++) {
+    const p = polygon[k];
+    const q = polygon[(k + 1) % polygon.length];
+    // The side's normal, turned to face out of the polygon.
+    let n = { x: q.y - p.y, y: p.x - q.x };
+    if (n.x * (p.x - c.x) + n.y * (p.y - c.y) < 0) n = { x: -n.x, y: -n.y };
+    // Inside where n·(a + t d − p) ≤ 0, that is t (n·d) ≤ n·(p − a).
+    const num = n.x * (p.x - a.x) + n.y * (p.y - a.y);
+    const den = n.x * d.x + n.y * d.y;
+    if (den === 0) {
+      if (num < 0) return false;
+    } else if (den > 0) hi = Math.min(hi, num / den);
+    else lo = Math.max(lo, num / den);
+    if (lo > hi) return false;
+  }
+  return true;
+}
+
+/**
+ * How far out from the middle of a convex polygon centred on 0,0 its outline
+ * is in the direction of x,y, as a fraction of the length of x,y.
+ */
+function boundary(polygon, x, y) {
+  let reach = Infinity;
+  for (let k = 0; k < polygon.length; k++) {
+    const p = polygon[k];
+    const q = polygon[(k + 1) % polygon.length];
+    let n = { x: q.y - p.y, y: p.x - q.x };
+    if (n.x * p.x + n.y * p.y < 0) n = { x: -n.x, y: -n.y };
+    const towards = n.x * x + n.y * y;
+    if (towards > 0) reach = Math.min(reach, (n.x * p.x + n.y * p.y) / towards);
+  }
+  return reach;
 }
 
 /** How far a point is from each edge of the screen. */
